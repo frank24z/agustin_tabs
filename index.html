@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agustín TABS</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- LOBBY -->
+  <section id="lobbyScreen" class="screen lobby-screen">
+
+    <header class="lobby-top">
+      <div class="profile-box">
+        <div class="avatar">A</div>
+        <div>
+          <h2>AGUSTÍN</h2>
+          <p>Nivel 1</p>
+        </div>
+      </div>
+
+      <div class="resource-bar">
+        <div class="resource coin">🟡 <span>500</span></div>
+        <div class="resource gem">💎 <span>25</span></div>
+        <div class="resource trophy">🏆 <span>0</span></div>
+      </div>
+
+      <button class="small-button" onclick="lobbyMessage('Ajustes todavía no disponible')">⚙</button>
+    </header>
+
+    <main class="lobby-main">
+
+      <aside class="side-menu left-menu">
+        <button onclick="lobbyMessage('Tienda todavía no disponible')">🛒 Tienda</button>
+        <button onclick="lobbyMessage('Luchadores todavía no disponible')">🥊 Luchadores</button>
+        <button onclick="lobbyMessage('Misiones todavía no disponible')">📜 Misiones</button>
+        <button onclick="lobbyMessage('Eventos todavía no disponible')">🎯 Eventos</button>
+      </aside>
+
+      <section class="hero-area">
+        <div class="hero-name-card">
+          <h1>AGUSTÍN TABS</h1>
+          <p>Batallas locas con tropas</p>
+        </div>
+
+        <div class="hero-card">
+          <div class="hero-glow"></div>
+
+          <div class="hero-character">
+            <div class="hero-head">
+              <div class="eye left-eye"></div>
+              <div class="eye right-eye"></div>
+              <div class="smile"></div>
+            </div>
+            <div class="hero-body"></div>
+            <div class="hero-arm hero-arm-left"></div>
+            <div class="hero-arm hero-arm-right"></div>
+            <div class="hero-leg hero-leg-left"></div>
+            <div class="hero-leg hero-leg-right"></div>
+            <div class="hero-sword"></div>
+          </div>
+        </div>
+
+        <p id="lobbyMessage">Bienvenido al lobby. Presiona JUGAR para preparar tu ejército.</p>
+      </section>
+
+      <aside class="right-panel">
+        <div class="mode-card">
+          <h2>Modo actual</h2>
+          <h3>Batalla Campal</h3>
+          <p>Coloca tropas azules y derrota al equipo rojo.</p>
+        </div>
+
+        <div class="reward-card">
+          <h2>Recompensa</h2>
+          <p>+50 monedas si ganas</p>
+        </div>
+
+        <button class="play-button" onclick="goToGame()">¡JUGAR!</button>
+      </aside>
+
+    </main>
+
+    <footer class="lobby-bottom">
+      <button onclick="lobbyMessage('Club todavía no disponible')">👥 Club</button>
+      <button onclick="lobbyMessage('Pase todavía no disponible')">🎟 Pase</button>
+      <button onclick="lobbyMessage('Noticias todavía no disponible')">📰 Noticias</button>
+    </footer>
+  </section>
+
+
+  <!-- JUEGO -->
+  <section id="gameScreen" class="screen game-screen hidden">
+
+    <div id="ui">
+      <div class="game-title-row">
+        <h2>Agustín TABS - Batalla</h2>
+        <button class="back-button" onclick="showLobby()">Volver al lobby</button>
+      </div>
+
+      <div class="unit-buttons">
+        <button onclick="selectUnit('soldier')">Soldado $50</button>
+        <button onclick="selectUnit('archer')">Arquero $80</button>
+        <button onclick="selectUnit('giant')">Gigante $150</button>
+      </div>
+
+      <div class="battle-buttons">
+        <button onclick="startBattle()">Iniciar batalla</button>
+        <button onclick="resetGame()">Reiniciar batalla</button>
+      </div>
+
+      <p>Dinero: $<span id="money">500</span></p>
+      <p id="msg">Elige una unidad y colócala en tu lado azul.</p>
+    </div>
+
+    <canvas id="game" width="1000" height="600"></canvas>
+
+  </section>
+
+  <script src="script.js"></script>
+</body>
+</html>
