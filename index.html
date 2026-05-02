@@ -3,45 +3,45 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Agustín TABS</title>
+  <title>Agustin TABS 3D</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- LOBBY -->
+  <!-- LOBBY ESTILO ANTERIOR -->
   <section id="lobbyScreen" class="screen lobby-screen">
 
     <header class="lobby-top">
       <div class="profile-box">
         <div class="avatar">A</div>
         <div>
-          <h2>AGUSTÍN</h2>
-          <p>Nivel 1</p>
+          <h2>AGUSTIN</h2>
+          <p>Nivel <span id="lobbyLevel">1</span>/10</p>
         </div>
       </div>
 
       <div class="resource-bar">
-        <div class="resource coin">🟡 <span>500</span></div>
+        <div class="resource coin">🟡 <span id="lobbyCoins">500</span></div>
         <div class="resource gem">💎 <span>25</span></div>
-        <div class="resource trophy">🏆 <span>0</span></div>
+        <div class="resource trophy">🏆 <span id="lobbyTrophies">0</span></div>
       </div>
 
-      <button class="small-button" onclick="lobbyMessage('Ajustes todavía no disponible')">⚙</button>
+      <button class="small-button" id="settingsBtn">⚙</button>
     </header>
 
     <main class="lobby-main">
 
       <aside class="side-menu left-menu">
-        <button onclick="lobbyMessage('Tienda todavía no disponible')">🛒 Tienda</button>
-        <button onclick="lobbyMessage('Luchadores todavía no disponible')">🥊 Luchadores</button>
-        <button onclick="lobbyMessage('Misiones todavía no disponible')">📜 Misiones</button>
-        <button onclick="lobbyMessage('Eventos todavía no disponible')">🎯 Eventos</button>
+        <button id="shopBtn">🛒 Tienda</button>
+        <button id="fightersBtn">🥊 Luchadores</button>
+        <button id="missionsBtn">📜 Misiones</button>
+        <button id="eventsBtn">🎯 Eventos</button>
       </aside>
 
       <section class="hero-area">
         <div class="hero-name-card">
-          <h1>AGUSTÍN TABS</h1>
-          <p>Batallas locas con tropas</p>
+          <h1>AGUSTIN TABS</h1>
+          <p>Batallas 3D con fisica loca</p>
         </div>
 
         <div class="hero-card">
@@ -62,62 +62,82 @@
           </div>
         </div>
 
-        <p id="lobbyMessage">Bienvenido al lobby. Presiona JUGAR para preparar tu ejército.</p>
+        <p id="lobbyMessage">Lobby listo. Presiona JUGAR para preparar tu ejercito.</p>
       </section>
 
       <aside class="right-panel">
         <div class="mode-card">
           <h2>Modo actual</h2>
-          <h3>Batalla Campal</h3>
-          <p>Coloca tropas azules y derrota al equipo rojo.</p>
+          <h3>Batalla 3D</h3>
+          <p>Coloca tropas azules, inicia la batalla y derrota al equipo rojo.</p>
         </div>
 
         <div class="reward-card">
-          <h2>Recompensa</h2>
-          <p>+50 monedas si ganas</p>
+          <h2>Controles</h2>
+          <p>Mouse: rotar/zoom/mover camara. W A S D: mover camara. R/F: subir y bajar.</p>
         </div>
 
-        <button class="play-button" onclick="goToGame()">¡JUGAR!</button>
+        <button class="play-button" id="playButton">¡JUGAR!</button>
       </aside>
 
     </main>
 
     <footer class="lobby-bottom">
-      <button onclick="lobbyMessage('Club todavía no disponible')">👥 Club</button>
-      <button onclick="lobbyMessage('Pase todavía no disponible')">🎟 Pase</button>
-      <button onclick="lobbyMessage('Noticias todavía no disponible')">📰 Noticias</button>
+      <button id="clubBtn">👥 Club</button>
+      <button id="passBtn">🎟 Pase</button>
+      <button id="newsBtn">📰 Noticias</button>
     </footer>
   </section>
 
 
-  <!-- JUEGO -->
+  <!-- JUEGO 3D -->
   <section id="gameScreen" class="screen game-screen hidden">
 
-    <div id="ui">
-      <div class="game-title-row">
-        <h2>Agustín TABS - Batalla</h2>
-        <button class="back-button" onclick="showLobby()">Volver al lobby</button>
+    <div class="game-hud">
+      <div class="hud-panel hud-left">
+        <h2>Agustin TABS 3D</h2>
+        <p id="statusText">Elige una unidad y colocala en la zona azul.</p>
       </div>
 
-      <div class="unit-buttons">
-        <button onclick="selectUnit('soldier')">Soldado $50</button>
-        <button onclick="selectUnit('archer')">Arquero $80</button>
-        <button onclick="selectUnit('giant')">Gigante $150</button>
+      <div class="hud-panel hud-center">
+        <div class="pill">Nivel <span id="levelText">1</span>/10</div>
+        <div class="pill">Dinero $<span id="moneyText">500</span></div>
+        <div class="pill">Rojos <span id="redCountText">0</span></div>
       </div>
 
-      <div class="battle-buttons">
-        <button onclick="startBattle()">Iniciar batalla</button>
-        <button onclick="resetGame()">Reiniciar batalla</button>
+      <div class="hud-panel hud-right">
+        <button class="secondary-btn" id="backLobbyButton">Volver al lobby</button>
       </div>
-
-      <p>Dinero: $<span id="money">500</span></p>
-      <p id="msg">Elige una unidad y colócala en tu lado azul.</p>
     </div>
 
-    <canvas id="game" width="1000" height="600"></canvas>
+    <div class="unit-toolbar">
+      <button class="unit-btn" data-unit="clubber">Garrote<br><span>$50 CUERPO</span></button>
+      <button class="unit-btn" data-unit="shield">Escudo<br><span>$70 CUERPO</span></button>
+      <button class="unit-btn" data-unit="spearman">Lancero<br><span>$90 CUERPO</span></button>
+      <button class="unit-btn" data-unit="archer">Arquero<br><span>$100 DISTANCIA</span></button>
+      <button class="unit-btn" data-unit="knight">Caballero<br><span>$130 CUERPO</span></button>
+      <button class="unit-btn" data-unit="giant">Gigante<br><span>$180 CUERPO</span></button>
+      <button class="unit-btn" data-unit="mage">Mago<br><span>$160 DISTANCIA</span></button>
+    </div>
 
+    <div class="battle-toolbar">
+      <button class="primary-btn" id="startBattleButton">Iniciar batalla</button>
+      <button class="secondary-btn" id="resetBattleButton">Reiniciar batalla</button>
+      <button class="primary-btn" id="nextLevelButton" disabled>Siguiente nivel</button>
+    </div>
+
+    <div id="game3d"></div>
   </section>
 
-  <script src="script.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.161.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.161.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module" src="script.js"></script>
 </body>
 </html>
