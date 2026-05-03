@@ -8,14 +8,34 @@
 </head>
 <body>
 
+  <!-- CREAR CUENTA -->
+  <section id="accountScreen" class="screen account-screen">
+    <div class="account-card">
+      <div class="account-logo">A</div>
+      <h1>Crear cuenta</h1>
+      <p>Antes de entrar al lobby, crea tu jugador.</p>
+
+      <form id="accountForm" class="account-form">
+        <label for="nicknameInput">¿Cómo te vas a llamar en el juego? Nickname</label>
+        <input id="nicknameInput" type="text" maxlength="16" placeholder="Ejemplo: AgustinPro" autocomplete="off" />
+
+        <label for="ageInput">Edad</label>
+        <input id="ageInput" type="number" min="1" max="120" placeholder="Ejemplo: 12" />
+
+        <button class="play-button account-submit" type="submit">GUARDAR Y ENTRAR</button>
+        <p id="accountError" class="account-error"></p>
+      </form>
+    </div>
+  </section>
+
   <!-- LOBBY ESTILO ANTERIOR -->
-  <section id="lobbyScreen" class="screen lobby-screen">
+  <section id="lobbyScreen" class="screen lobby-screen hidden">
 
     <header class="lobby-top">
       <div class="profile-box">
-        <div class="avatar">A</div>
+        <div class="avatar" id="profileAvatar">A</div>
         <div>
-          <h2>AGUSTIN</h2>
+          <h2 id="profileName">AGUSTIN</h2>
           <p>Nivel <span id="lobbyLevel">1</span>/10</p>
         </div>
       </div>
@@ -78,9 +98,39 @@
         </div>
 
         <button class="play-button" id="playButton">¡JUGAR!</button>
+        <button class="play-button free-play-button" id="freeModeButton">MODO LIBRE</button>
+        <button class="play-button multiplayer-button" id="multiplayerButton">MULTIJUGADOR</button>
       </aside>
 
     </main>
+
+
+    <!-- PANEL MULTIJUGADOR LOCAL -->
+    <section id="multiplayerPanel" class="multiplayer-panel hidden">
+      <div class="multiplayer-card">
+        <button class="multiplayer-close" id="closeMultiplayerPanel">✕</button>
+        <h2>Multijugador</h2>
+        <p>Busca el nickname del jugador, envíale una invitación y espera que acepte. Tú serás el equipo azul y el jugador invitado será el equipo rojo.</p>
+
+        <div class="multiplayer-search-row">
+          <input id="playerSearchInput" type="text" maxlength="16" placeholder="Nombre del jugador" autocomplete="off" />
+          <button class="primary-btn" id="searchPlayerButton">Buscar</button>
+        </div>
+
+        <div id="playerSearchResults" class="player-search-results">
+          Escribe un nickname para buscar jugadores.
+        </div>
+
+        <div id="inviteBox" class="invite-box hidden">
+          <h3>Invitación enviada</h3>
+          <p id="inviteText">Esperando respuesta...</p>
+          <div class="invite-actions">
+            <button class="primary-btn" id="acceptInviteButton">Aceptar invitación</button>
+            <button class="secondary-btn" id="rejectInviteButton">Rechazar</button>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <footer class="lobby-bottom">
       <button id="clubBtn">👥 Club</button>
@@ -100,8 +150,12 @@
       </div>
 
       <div class="hud-panel hud-center">
-        <div class="pill">Nivel <span id="levelText">1</span>/10</div>
+        <div class="pill">Modo <span id="modeText">Niveles</span></div>
+        <div class="pill">Nivel <span id="levelText">1</span><span id="levelSuffix">/10</span></div>
         <div class="pill">Dinero $<span id="moneyText">500</span></div>
+        <div class="pill multiplayer-pill hidden" id="multiplayerBudgetPill">Azul $<span id="blueMoneyText">2000</span> | Rojo $<span id="redMoneyText">2000</span></div>
+        <div class="pill multiplayer-pill hidden" id="multiplayerOpponentPill">VS <span id="opponentNameText">Jugador</span></div>
+        <div class="pill">Azules <span id="blueCountText">0</span></div>
         <div class="pill">Rojos <span id="redCountText">0</span></div>
       </div>
 
@@ -118,6 +172,33 @@
       <button class="unit-btn" data-unit="knight">Caballero<br><span>$130 CUERPO</span></button>
       <button class="unit-btn" data-unit="giant">Gigante<br><span>$180 CUERPO</span></button>
       <button class="unit-btn" data-unit="mage">Mago<br><span>$160 DISTANCIA</span></button>
+      <button class="unit-btn legendary" data-unit="devil">Diablo<br><span>$400 TELEPORT</span></button>
+      <button class="unit-btn legendary" data-unit="death">La Muerte<br><span>$370 EMPUJE</span></button>
+      <button class="unit-btn legendary" data-unit="god">Dios<br><span>$400 TIEMPO</span></button>
+      <button class="unit-btn" data-unit="ninja">Ninja<br><span>$220 CUERPO</span></button>
+      <button class="unit-btn" data-unit="samurai">Samurái<br><span>$250 CUERPO</span></button>
+      <button class="unit-btn" data-unit="berserker">Berserker<br><span>$230 CUERPO</span></button>
+      <button class="unit-btn" data-unit="paladin">Paladín<br><span>$260 CUERPO</span></button>
+      <button class="unit-btn" data-unit="cannoneer">Cañonero<br><span>$240 DISTANCIA</span></button>
+      <button class="unit-btn" data-unit="vampire">Vampiro<br><span>$260 ROBO VIDA</span></button>
+      <button class="unit-btn" data-unit="angel">Ángel<br><span>$300 DISTANCIA</span></button>
+    </div>
+
+    <div id="freeModeToolbar" class="free-toolbar hidden">
+      <div class="free-title">Modo libre: pon cualquier luchador y elige tus enemigos.</div>
+      <button class="team-btn active" id="placeBlueButton">Colocar azules</button>
+      <button class="team-btn" id="placeRedButton">Colocar enemigos rojos</button>
+      <button class="secondary-btn" id="randomEnemiesButton">Enemigos aleatorios</button>
+      <button class="secondary-btn" id="clearFreeButton">Borrar campo</button>
+      <span id="freeTeamText" class="free-team-text">Colocando: Azules</span>
+    </div>
+
+
+    <div id="multiplayerToolbar" class="free-toolbar multiplayer-toolbar hidden">
+      <div class="free-title">Multijugador: tú eres azul. El invitado es rojo. Cada uno tiene $2000.</div>
+      <button class="team-btn active" id="multiPlaceBlueButton">Turno azul</button>
+      <button class="team-btn" id="multiPlaceRedButton">Turno rojo invitado</button>
+      <span id="multiTeamText" class="free-team-text">Colocando: Azul</span>
     </div>
 
     <div class="battle-toolbar">

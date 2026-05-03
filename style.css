@@ -22,6 +22,115 @@ button {
   display: none !important;
 }
 
+
+/* ======================= */
+/* CREAR CUENTA */
+/* ======================= */
+
+.account-screen {
+  background:
+    radial-gradient(circle at top, #63d5ff 0%, #1786d9 38%, #1254b8 75%, #0a2770 100%);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.account-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(45deg, rgba(255,255,255,0.08) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255,255,255,0.08) 25%, transparent 25%);
+  background-size: 90px 90px;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.account-card {
+  position: relative;
+  z-index: 2;
+  width: min(520px, 94vw);
+  background: rgba(0,0,0,0.5);
+  border: 6px solid #111;
+  border-radius: 32px;
+  box-shadow: 0 18px 0 rgba(0,0,0,0.38);
+  padding: 28px;
+  text-align: center;
+}
+
+.account-logo {
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 14px;
+  display: grid;
+  place-items: center;
+  border: 5px solid #111;
+  border-radius: 22px;
+  background: linear-gradient(#ffe066, #ff922b);
+  color: #111;
+  font-size: 48px;
+  font-weight: 900;
+  box-shadow: 0 8px 0 rgba(0,0,0,0.35);
+}
+
+.account-card h1 {
+  margin: 0;
+  font-size: 48px;
+  text-shadow: 5px 5px 0 #000;
+}
+
+.account-card p {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.account-form {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.account-form label {
+  font-size: 18px;
+  font-weight: 900;
+  color: #ffd43b;
+  text-shadow: 2px 2px 0 #000;
+}
+
+.account-form input {
+  width: 100%;
+  border: 4px solid #111;
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: 22px;
+  font-weight: 900;
+  outline: none;
+  box-shadow: 0 7px 0 rgba(0,0,0,0.35);
+}
+
+.account-form input:focus {
+  border-color: #ffd43b;
+}
+
+.account-submit {
+  width: 100%;
+  margin-top: 10px;
+  font-size: 28px;
+}
+
+.account-error {
+  min-height: 24px;
+  margin: 0;
+  color: #ff8787;
+  text-align: center;
+  text-shadow: 2px 2px 0 #000;
+}
+
 /* ======================= */
 /* LOBBY IGUAL AL ANTERIOR */
 /* ======================= */
@@ -562,6 +671,11 @@ button {
   min-width: 125px;
 }
 
+.unit-btn.legendary {
+  background: linear-gradient(#ff6b6b, #862e9c);
+}
+
+
 .unit-btn span {
   font-size: 11px;
   color: #ffd43b;
@@ -614,6 +728,215 @@ button {
   display: block;
   width: 100% !important;
   height: 100% !important;
+}
+
+
+
+.free-play-button {
+  background: linear-gradient(#69db7c, #2b8a3e);
+  box-shadow: 0 12px 0 #145c26;
+  font-size: 30px;
+  padding: 18px;
+}
+
+.free-toolbar {
+  width: min(1320px, 98vw);
+  margin: 0 auto 10px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.08);
+  border: 3px solid #0b1220;
+  border-radius: 18px;
+  padding: 10px;
+  box-shadow: 0 5px 0 rgba(0,0,0,0.35);
+}
+
+.free-title {
+  color: #ffd43b;
+  font-weight: 900;
+  text-shadow: 2px 2px 0 #000;
+  margin-right: 10px;
+}
+
+.team-btn {
+  border: 4px solid #0b1220;
+  border-radius: 14px;
+  padding: 10px 13px;
+  cursor: pointer;
+  color: white;
+  font-weight: 900;
+  box-shadow: 0 6px 0 rgba(0,0,0,0.45);
+  text-shadow: 2px 2px 0 #000;
+  background: linear-gradient(#868e96, #495057);
+}
+
+.team-btn.active {
+  outline: 4px solid #ffd43b;
+  filter: brightness(1.18);
+}
+
+#placeBlueButton.active {
+  background: linear-gradient(#4dabf7, #1864ab);
+}
+
+#placeRedButton.active {
+  background: linear-gradient(#ff6b6b, #c92a2a);
+}
+
+.free-team-text {
+  background: rgba(0,0,0,0.45);
+  border: 2px solid #0b1220;
+  border-radius: 999px;
+  padding: 9px 13px;
+  font-weight: 900;
+  color: #fff3bf;
+}
+
+
+
+/* ======================= */
+/* MULTIJUGADOR */
+/* ======================= */
+
+.multiplayer-button {
+  background: linear-gradient(#ff6b6b, #c92a2a);
+  box-shadow: 0 12px 0 #7a1010;
+  font-size: 28px;
+  padding: 18px;
+}
+
+.multiplayer-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.multiplayer-card {
+  width: min(720px, 96vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  background: linear-gradient(180deg, rgba(29, 77, 160, 0.96), rgba(8, 31, 84, 0.98));
+  border: 6px solid #111;
+  border-radius: 28px;
+  padding: 26px;
+  box-shadow: 0 18px 0 rgba(0,0,0,0.42);
+}
+
+.multiplayer-close {
+  position: absolute;
+  right: 16px;
+  top: 14px;
+  width: 48px;
+  height: 48px;
+  border: 4px solid #111;
+  border-radius: 14px;
+  background: linear-gradient(#ff8787, #c92a2a);
+  color: white;
+  font-size: 24px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 6px 0 rgba(0,0,0,0.45);
+}
+
+.multiplayer-card h2 {
+  margin: 0 54px 8px 0;
+  font-size: 42px;
+  text-shadow: 4px 4px 0 #000;
+}
+
+.multiplayer-card p {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.multiplayer-search-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 18px 0;
+}
+
+.multiplayer-search-row input {
+  flex: 1;
+  min-width: 220px;
+  border: 4px solid #111;
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 22px;
+  font-weight: 900;
+  outline: none;
+  box-shadow: 0 6px 0 rgba(0,0,0,0.35);
+}
+
+.player-search-results,
+.invite-box {
+  background: rgba(0,0,0,0.35);
+  border: 4px solid #111;
+  border-radius: 18px;
+  padding: 14px;
+  font-weight: 900;
+  box-shadow: 0 7px 0 rgba(0,0,0,0.35);
+}
+
+.player-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  margin: 8px 0;
+  background: rgba(255,255,255,0.1);
+  border: 3px solid #111;
+  border-radius: 14px;
+}
+
+.player-result strong {
+  color: #ffd43b;
+  text-shadow: 2px 2px 0 #000;
+}
+
+.invite-box {
+  margin-top: 14px;
+  background: rgba(255, 212, 59, 0.18);
+}
+
+.invite-box h3 {
+  margin: 0 0 6px;
+  font-size: 28px;
+  color: #ffd43b;
+  text-shadow: 3px 3px 0 #000;
+}
+
+.invite-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.multiplayer-pill {
+  color: #ffd43b;
+}
+
+.multiplayer-toolbar {
+  background: rgba(170, 32, 32, 0.22);
+}
+
+#multiPlaceBlueButton.active {
+  background: linear-gradient(#4dabf7, #1864ab);
+}
+
+#multiPlaceRedButton.active {
+  background: linear-gradient(#ff6b6b, #c92a2a);
 }
 
 @media (max-width: 1000px) {
@@ -669,6 +992,12 @@ button {
 
   .play-button {
     font-size: 30px;
+  }
+
+  .free-title,
+  .free-team-text {
+    width: 100%;
+    text-align: center;
   }
 
   .lobby-bottom {
