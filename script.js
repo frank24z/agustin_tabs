@@ -8,6 +8,8 @@ const accountScreen = document.getElementById("accountScreen");
 const lobbyScreen = document.getElementById("lobbyScreen");
 const gameScreen = document.getElementById("gameScreen");
 const gameContainer = document.getElementById("game3d");
+const winnerBanner = document.getElementById("winnerBanner");
+const winnerBannerText = document.getElementById("winnerBannerText");
 
 const accountForm = document.getElementById("accountForm");
 const nicknameInput = document.getElementById("nicknameInput");
@@ -61,6 +63,16 @@ const multiplayerToolbar = document.getElementById("multiplayerToolbar");
 const multiPlaceBlueButton = document.getElementById("multiPlaceBlueButton");
 const multiPlaceRedButton = document.getElementById("multiPlaceRedButton");
 const multiTeamText = document.getElementById("multiTeamText");
+const rouletteWheel = document.getElementById("rouletteWheel");
+const rouletteNamesText = document.getElementById("rouletteNamesText");
+const rouletteResultText = document.getElementById("rouletteResultText");
+const spinRouletteButton = document.getElementById("spinRouletteButton");
+const bluePlayerNameText = document.getElementById("bluePlayerNameText");
+const redPlayerNameText = document.getElementById("redPlayerNameText");
+const draftTurnText = document.getElementById("draftTurnText");
+const blueDraftText = document.getElementById("blueDraftText");
+const redDraftText = document.getElementById("redDraftText");
+const lockedDraftText = document.getElementById("lockedDraftText");
 
 const unitButtons = [...document.querySelectorAll(".unit-btn")];
 
@@ -70,6 +82,7 @@ const unitButtons = [...document.querySelectorAll(".unit-btn")];
 const ACCOUNT_STORAGE_KEY = "agustinTabs3DAccount";
 const MULTIPLAYER_PLAYERS_KEY = "agustinTabs3DPlayers";
 const MULTIPLAYER_BUDGET = 2000;
+const MULTIPLAYER_MAX_FIGHTERS_PER_TEAM = 5;
 let playerAccount = null;
 
 let currentLevel = 1;
@@ -82,6 +95,13 @@ let multiplayerBlueMoney = MULTIPLAYER_BUDGET;
 let multiplayerRedMoney = MULTIPLAYER_BUDGET;
 let pendingInviteName = "";
 let multiplayerOpponentName = "";
+let multiplayerBluePlayerName = "";
+let multiplayerRedPlayerName = "";
+let multiplayerRouletteSpun = false;
+let multiplayerRouletteSpinning = false;
+let multiplayerDraftTurn = "blue";
+let multiplayerDraft = { blue: [], red: [] };
+let multiplayerMustPlaceSelected = false;
 let selectedUnitType = null;
 let battleStarted = false;
 let battleWon = false;
@@ -1969,21 +1989,227 @@ function setStatus(text) {
   statusText.textContent = text;
 }
 
+function hideWinnerMessage() {
+  if (!winnerBanner || !winnerBannerText) return;
+  winnerBanner.classList.add("hidden");
+  winnerBanner.classList.remove("blue", "red");
+}
+
+function showWinnerMessage(team) {
+  if (!winnerBanner || !winnerBannerText) return;
+  const isBlue = team === "blue";
+  winnerBannerText.textContent = isBlue ? "EL EQUIPO AZUL GANA" : "EL EQUIPO ROJO GANA";
+  winnerBanner.classList.remove("hidden", "blue", "red");
+  winnerBanner.classList.add(isBlue ? "blue" : "red");
+}
+
+
+function getAllDraftedTypes() {
+  return [...multiplayerDraft.blue, ...multiplayerDraft.red];
+}
+
+function getTeamPlayerName(team) {
+  if (team === "blue") return multiplayerBluePlayerName || "Jugador azul";
+  return multiplayerRedPlayerName || "Jugador rojo";
+}
+
+function getCurrentDraftTeamName() {
+  return getTeamPlayerName(multiplayerDraftTurn);
+}
+
+function resetMultiplayerDraftState() {
+  multiplayerRouletteSpun = false;
+  multiplayerRouletteSpinning = false;
+  multiplayerDraftTurn = "blue";
+  multiplayerPlacementTeam = "blue";
+  multiplayerDraft = { blue: [], red: [] };
+  multiplayerMustPlaceSelected = false;
+  multiplayerBluePlayerName = "";
+  multiplayerRedPlayerName = "";
+  if (rouletteWheel) {
+    rouletteWheel.textContent = "?";
+    rouletteWheel.classList.remove("spinning");
+  }
+  if (spinRouletteButton) spinRouletteButton.disabled = false;
+}
+
+function prepareMultiplayerRoulette() {
+  const inviterName = playerAccount?.nickname || "Jugador 1";
+  const invitedName = multiplayerOpponentName || "Jugador 2";
+  resetMultiplayerDraftState();
+  if (rouletteNamesText) rouletteNamesText.textContent = `${inviterName} vs ${invitedName}`;
+  if (rouletteResultText) rouletteResultText.textContent = "Gira la ruleta: al que le toque azul empieza, rojo va después.";
+  if (bluePlayerNameText) bluePlayerNameText.textContent = "Esperando ruleta";
+  if (redPlayerNameText) redPlayerNameText.textContent = "Esperando ruleta";
+  if (draftTurnText) draftTurnText.textContent = "Esperando ruleta";
+  updateMultiplayerDraftUI();
+}
+
+function updateMultiplayerDraftUI() {
+  if (currentGameMode !== "multiplayer") {
+    unitButtons.forEach(btn => {
+      btn.disabled = false;
+      btn.classList.remove("locked", "drafted-blue", "drafted-red", "draft-full");
+      btn.title = "";
+    });
+    return;
+  }
+
+  const blueList = multiplayerDraft.blue.map(type => unitTypes[type]?.name || type);
+  const redList = multiplayerDraft.red.map(type => unitTypes[type]?.name || type);
+  const lockedList = getAllDraftedTypes().map(type => unitTypes[type]?.name || type);
+  const currentList = multiplayerDraft[multiplayerDraftTurn];
+  const currentFull = currentList.length >= MULTIPLAYER_MAX_FIGHTERS_PER_TEAM;
+
+  if (bluePlayerNameText) bluePlayerNameText.textContent = getTeamPlayerName("blue");
+  if (redPlayerNameText) redPlayerNameText.textContent = getTeamPlayerName("red");
+  if (draftTurnText) {
+    draftTurnText.textContent = multiplayerRouletteSpun
+      ? `${multiplayerDraftTurn === "blue" ? "Azul" : "Rojo"} - ${getCurrentDraftTeamName()}`
+      : "Esperando ruleta";
+  }
+  if (blueDraftText) blueDraftText.textContent = `Azul eligió: ${blueList.length ? blueList.join(", ") : "ninguno"}`;
+  if (redDraftText) redDraftText.textContent = `Rojo eligió: ${redList.length ? redList.join(", ") : "ninguno"}`;
+  if (lockedDraftText) lockedDraftText.textContent = `Bloqueados: ${lockedList.length ? lockedList.join(", ") : "ninguno"}`;
+
+  unitButtons.forEach(btn => {
+    const type = btn.dataset.unit;
+    const blueOwns = multiplayerDraft.blue.includes(type);
+    const redOwns = multiplayerDraft.red.includes(type);
+    const ownTeamOwns = multiplayerDraft[multiplayerDraftTurn].includes(type);
+    const enemyOwns = multiplayerDraft[multiplayerDraftTurn === "blue" ? "red" : "blue"].includes(type);
+    const mustPlaceOther = multiplayerMustPlaceSelected && selectedUnitType && type !== selectedUnitType;
+    const locked = !multiplayerRouletteSpun || enemyOwns || (currentFull && !ownTeamOwns) || mustPlaceOther;
+
+    btn.disabled = locked;
+    btn.classList.toggle("locked", locked);
+    btn.classList.toggle("drafted-blue", blueOwns);
+    btn.classList.toggle("drafted-red", redOwns);
+    btn.classList.toggle("draft-full", currentFull && !ownTeamOwns && !enemyOwns);
+
+    if (!multiplayerRouletteSpun) {
+      btn.title = "Primero gira la ruleta.";
+    } else if (mustPlaceOther) {
+      btn.title = "Primero coloca el luchador ya escogido antes de cambiar.";
+    } else if (enemyOwns) {
+      btn.title = "Este luchador ya fue escogido por el otro equipo.";
+    } else if (currentFull && !ownTeamOwns) {
+      btn.title = `Este equipo ya escogió ${MULTIPLAYER_MAX_FIGHTERS_PER_TEAM} luchadores distintos.`;
+    } else if (ownTeamOwns) {
+      btn.title = "Tu equipo ya escogió este luchador y puede volver a colocarlo.";
+    } else {
+      btn.title = "Disponible para escoger.";
+    }
+  });
+}
+
+function switchMultiplayerTurnAfterPlacement() {
+  multiplayerDraftTurn = multiplayerDraftTurn === "blue" ? "red" : "blue";
+  setMultiplayerPlacementTeam(multiplayerDraftTurn, true);
+}
+
+function spinMultiplayerRoulette() {
+  if (currentGameMode !== "multiplayer" || multiplayerRouletteSpinning || battleStarted) return;
+
+  const inviterName = playerAccount?.nickname || "Jugador 1";
+  const invitedName = multiplayerOpponentName || "Jugador 2";
+  const inviterBlue = Math.random() < 0.5;
+  multiplayerRouletteSpinning = true;
+  if (spinRouletteButton) spinRouletteButton.disabled = true;
+  if (rouletteWheel) rouletteWheel.classList.add("spinning");
+  if (rouletteResultText) rouletteResultText.textContent = "Girando ruleta...";
+
+  let ticks = 0;
+  const maxTicks = 24;
+  const interval = setInterval(() => {
+    ticks++;
+    const showBlue = ticks % 2 === 0;
+    if (rouletteWheel) rouletteWheel.textContent = showBlue ? "AZUL" : "ROJO";
+    if (rouletteResultText) {
+      rouletteResultText.textContent = showBlue
+        ? `${inviterName} podría ser AZUL...`
+        : `${invitedName} podría ser ROJO...`;
+    }
+
+    if (ticks >= maxTicks) {
+      clearInterval(interval);
+      multiplayerRouletteSpinning = false;
+      multiplayerRouletteSpun = true;
+      multiplayerBluePlayerName = inviterBlue ? inviterName : invitedName;
+      multiplayerRedPlayerName = inviterBlue ? invitedName : inviterName;
+      multiplayerDraftTurn = "blue";
+      multiplayerPlacementTeam = "blue";
+      multiplayerMustPlaceSelected = false;
+
+      if (rouletteWheel) {
+        rouletteWheel.classList.remove("spinning");
+        rouletteWheel.textContent = "AZUL";
+      }
+      if (rouletteResultText) {
+        rouletteResultText.textContent = `${multiplayerBluePlayerName} quedó AZUL y empieza. ${multiplayerRedPlayerName} quedó ROJO y va después.`;
+      }
+      setMultiplayerPlacementTeam("blue", true);
+      updateMultiplayerDraftUI();
+    }
+  }, 90);
+}
+
 function selectUnit(type) {
+  const def = unitTypes[type];
+
+  if (currentGameMode === "multiplayer") {
+    if (!multiplayerRouletteSpun) {
+      selectedUnitType = null;
+      unitButtons.forEach(btn => btn.classList.remove("selected"));
+      setStatus("Primero gira la ruleta para saber quién empieza como azul y quién va después como rojo.");
+      return;
+    }
+
+    const team = multiplayerDraftTurn;
+    const otherTeam = team === "blue" ? "red" : "blue";
+    const ownDraft = multiplayerDraft[team];
+    const otherDraft = multiplayerDraft[otherTeam];
+
+    if (multiplayerMustPlaceSelected && selectedUnitType && selectedUnitType !== type) {
+      const selectedName = unitTypes[selectedUnitType]?.name || "ese luchador";
+      setStatus(`Primero coloca a ${selectedName}. Después pasa el turno al otro equipo.`);
+      updateMultiplayerDraftUI();
+      return;
+    }
+
+    if (otherDraft.includes(type)) {
+      selectedUnitType = null;
+      setStatus(`${def.name} ya fue escogido por el otro equipo. Elige otro luchador.`);
+      updateMultiplayerDraftUI();
+      return;
+    }
+
+    if (!ownDraft.includes(type)) {
+      if (ownDraft.length >= MULTIPLAYER_MAX_FIGHTERS_PER_TEAM) {
+        selectedUnitType = null;
+        setStatus(`${getTeamPlayerName(team)} ya escogió ${MULTIPLAYER_MAX_FIGHTERS_PER_TEAM} luchadores distintos. Usa uno de sus luchadores ya elegidos.`);
+        updateMultiplayerDraftUI();
+        return;
+      }
+      ownDraft.push(type);
+    }
+
+    selectedUnitType = type;
+    multiplayerMustPlaceSelected = true;
+    unitButtons.forEach(btn => btn.classList.toggle("selected", btn.dataset.unit === type));
+    updateMultiplayerDraftUI();
+
+    const teamLabel = team === "blue" ? "AZUL" : "ROJO";
+    setStatus(`${getTeamPlayerName(team)} escogió ${def.name} para el equipo ${teamLabel}. Ahora colócalo en su zona. Luego pasa el turno.`);
+    return;
+  }
+
   selectedUnitType = type;
   unitButtons.forEach(btn => btn.classList.toggle("selected", btn.dataset.unit === type));
-
-  const def = unitTypes[type];
 
   if (currentGameMode === "free") {
     const teamText = freePlacementTeam === "blue" ? "aliados azules" : "enemigos rojos";
     setStatus(`Modo libre: seleccionaste ${def.name}. Ahora colócalo como ${teamText}.`);
-    return;
-  }
-
-  if (currentGameMode === "multiplayer") {
-    const teamText = multiplayerPlacementTeam === "blue" ? "tu equipo azul" : `el equipo rojo de ${multiplayerOpponentName || "invitado"}`;
-    setStatus(`Multijugador: seleccionaste ${def.name}. Ahora colócalo en ${teamText}.`);
     return;
   }
 
@@ -2002,18 +2228,29 @@ function setFreePlacementTeam(team) {
   setStatus(`Modo libre: ahora estás colocando ${teamText}. Elige un luchador y haz clic en su zona.`);
 }
 
-function setMultiplayerPlacementTeam(team) {
+function setMultiplayerPlacementTeam(team, automatic = false) {
+  if (currentGameMode === "multiplayer" && multiplayerRouletteSpun && team !== multiplayerDraftTurn && !automatic) {
+    setStatus(`No es turno de ese equipo. Ahora le toca a ${getTeamPlayerName(multiplayerDraftTurn)} (${multiplayerDraftTurn === "blue" ? "azul" : "rojo"}).`);
+    updateMultiplayerDraftUI();
+    return;
+  }
+
   multiplayerPlacementTeam = team;
   if (multiPlaceBlueButton) multiPlaceBlueButton.classList.toggle("active", team === "blue");
   if (multiPlaceRedButton) multiPlaceRedButton.classList.toggle("active", team === "red");
 
-  const teamText = team === "blue" ? "Azul" : "Rojo invitado";
+  const teamText = team === "blue" ? `Azul - ${getTeamPlayerName("blue")}` : `Rojo - ${getTeamPlayerName("red")}`;
   const budget = team === "blue" ? multiplayerBlueMoney : multiplayerRedMoney;
   if (multiTeamText) {
-    multiTeamText.textContent = `Colocando: ${teamText} | Dinero $${budget}`;
+    multiTeamText.textContent = multiplayerRouletteSpun
+      ? `Turno: ${teamText} | Dinero $${budget}`
+      : "Primero gira la ruleta";
   }
+  updateMultiplayerDraftUI();
   updateUI();
-  setStatus(`Multijugador: turno ${teamText}. Elige luchadores y colócalos en su zona. Cada jugador empezó con $${MULTIPLAYER_BUDGET}.`);
+  if (multiplayerRouletteSpun) {
+    setStatus(`Multijugador: turno de ${teamText}. Escoge un luchador único y colócalo en su zona.`);
+  }
 }
 
 function canPlaceAt(x, z, team = "blue") {
@@ -2049,6 +2286,23 @@ function placeUnitAt(x, z) {
   const isFree = currentGameMode === "free";
   const isMultiplayer = currentGameMode === "multiplayer";
   const team = isFree ? freePlacementTeam : (isMultiplayer ? multiplayerPlacementTeam : "blue");
+
+  if (isMultiplayer) {
+    if (!multiplayerRouletteSpun) {
+      setStatus("Primero gira la ruleta antes de colocar luchadores.");
+      return;
+    }
+
+    if (team !== multiplayerDraftTurn) {
+      setStatus(`Ahora no es turno de ese equipo. Le toca a ${getTeamPlayerName(multiplayerDraftTurn)}.`);
+      return;
+    }
+
+    if (!multiplayerDraft[team].includes(selectedUnitType)) {
+      setStatus("Primero escoge ese luchador para este equipo desde la barra.");
+      return;
+    }
+  }
 
   if (!isFree && !isMultiplayer && money < def.cost) {
     setStatus("No tienes dinero suficiente para esa unidad.");
@@ -2089,9 +2343,13 @@ function placeUnitAt(x, z) {
   updateUI();
 
   if (isMultiplayer) {
-    const teamText = team === "blue" ? "azul" : `rojo de ${multiplayerOpponentName || "invitado"}`;
+    const teamText = team === "blue" ? `azul de ${getTeamPlayerName("blue")}` : `rojo de ${getTeamPlayerName("red")}`;
     const remaining = team === "blue" ? multiplayerBlueMoney : multiplayerRedMoney;
-    setStatus(`${def.name} colocado en el equipo ${teamText}. Dinero restante: $${remaining}.`);
+    setStatus(`${def.name} colocado en el equipo ${teamText}. Dinero restante: $${remaining}. Ahora pasa el turno.`);
+    selectedUnitType = null;
+    multiplayerMustPlaceSelected = false;
+    unitButtons.forEach(btn => btn.classList.remove("selected"));
+    switchMultiplayerTurnAfterPlacement();
   } else if (isFree) {
     const teamText = team === "blue" ? "aliado azul" : "enemigo rojo";
     setStatus(`${def.name} colocado como ${teamText}. Puedes elegir otro luchador o iniciar la batalla.`);
@@ -2129,9 +2387,10 @@ function checkWinner() {
     battleStarted = false;
     battleWon = false;
     nextLevelButton.disabled = true;
+    showWinnerMessage("red");
 
     if (currentGameMode === "multiplayer") {
-      setStatus(`Multijugador: ganó ${multiplayerOpponentName || "el jugador rojo"}. El invitado era el equipo rojo.`);
+      setStatus(`Multijugador: ganó Rojo (${getTeamPlayerName("red")}).`);
     } else if (currentGameMode === "free") {
       setStatus("Modo libre: ganaron los enemigos rojos. Puedes reiniciar y probar otra pelea.");
     } else {
@@ -2142,11 +2401,11 @@ function checkWinner() {
   if (!redAlive && battleStarted) {
     battleStarted = false;
     battleWon = true;
+    showWinnerMessage("blue");
 
     if (currentGameMode === "multiplayer") {
       nextLevelButton.disabled = true;
-      const blueName = playerAccount?.nickname || "Jugador azul";
-      setStatus(`Multijugador: ganó ${blueName}. El equipo rojo de ${multiplayerOpponentName || "invitado"} perdió.`);
+      setStatus(`Multijugador: ganó Azul (${getTeamPlayerName("blue")}).`);
       return;
     }
 
@@ -2286,6 +2545,8 @@ function startApp() {
    RESET Y NIVELES
 ========================= */
 function clearBattlefield() {
+  hideWinnerMessage();
+
   while (projectiles.length) {
     const p = projectiles.pop();
     scene.remove(p.mesh);
@@ -2344,13 +2605,23 @@ function updateModePanel() {
   if (multiPlaceRedButton) multiPlaceRedButton.classList.toggle("active", multiplayerPlacementTeam === "red");
 
   if (multiTeamText) {
-    const teamName = multiplayerPlacementTeam === "blue" ? "Azul" : "Rojo invitado";
+    const teamName = multiplayerPlacementTeam === "blue" ? `Azul - ${getTeamPlayerName("blue")}` : `Rojo - ${getTeamPlayerName("red")}`;
     const budget = multiplayerPlacementTeam === "blue" ? multiplayerBlueMoney : multiplayerRedMoney;
-    multiTeamText.textContent = `Colocando: ${teamName} | Dinero $${budget}`;
+    multiTeamText.textContent = multiplayerRouletteSpun ? `Turno: ${teamName} | Dinero $${budget}` : "Primero gira la ruleta";
   }
 
   if (opponentNameText) {
     opponentNameText.textContent = multiplayerOpponentName || "Invitado";
+  }
+
+  if (isMultiplayer && rouletteNamesText) {
+    const inviterName = playerAccount?.nickname || "Jugador 1";
+    const invitedName = multiplayerOpponentName || "Jugador 2";
+    rouletteNamesText.textContent = `${inviterName} vs ${invitedName}`;
+  }
+
+  if (isMultiplayer) {
+    updateMultiplayerDraftUI();
   }
 }
 
@@ -2472,7 +2743,7 @@ function sendMultiplayerInvite(nickname) {
   }
 
   inviteBox.classList.remove("hidden");
-  inviteText.textContent = `Le enviaste una invitación a ${pendingInviteName}. Si acepta, ${pendingInviteName} será el equipo rojo y tú serás azul.`;
+  inviteText.textContent = `Le enviaste una invitación a ${pendingInviteName}. Si acepta, entrarán a la ruleta para decidir quién queda azul y quién queda rojo.`;
   lobbyMessage.textContent = `Invitación enviada a ${pendingInviteName}. Esperando que acepte...`;
 }
 
@@ -2498,6 +2769,7 @@ function resetBattle() {
   battleStarted = false;
   battleWon = false;
   selectedUnitType = null;
+  multiplayerMustPlaceSelected = false;
   nextLevelButton.disabled = true;
 
   unitButtons.forEach(btn => btn.classList.remove("selected"));
@@ -2516,9 +2788,10 @@ function resetBattle() {
     multiplayerRedMoney = MULTIPLAYER_BUDGET;
     multiplayerPlacementTeam = "blue";
     money = MULTIPLAYER_BUDGET;
+    prepareMultiplayerRoulette();
     updateModePanel();
     updateUI();
-    setStatus(`Multijugador listo: tú eres azul y ${multiplayerOpponentName || "el invitado"} es rojo. Cada uno tiene $${MULTIPLAYER_BUDGET}.`);
+    setStatus(`Multijugador listo: ${playerAccount?.nickname || "Jugador 1"} contra ${multiplayerOpponentName || "el invitado"}. Gira la ruleta para decidir azul/rojo. Cada uno tiene $${MULTIPLAYER_BUDGET}.`);
     return;
   }
 
@@ -2530,6 +2803,11 @@ function resetBattle() {
 }
 
 function startBattle() {
+  if (currentGameMode === "multiplayer" && !multiplayerRouletteSpun) {
+    setStatus("Primero gira la ruleta para decidir quién empieza como azul y quién va después como rojo.");
+    return;
+  }
+
   const blueCount = units.filter(u => !u.dead && u.team === "blue").length;
   const redCount = units.filter(u => !u.dead && u.team === "red").length;
 
@@ -2552,12 +2830,13 @@ function startBattle() {
   battleStarted = true;
   battleWon = false;
   selectedUnitType = null;
+  multiplayerMustPlaceSelected = false;
   unitButtons.forEach(btn => btn.classList.remove("selected"));
 
   if (currentGameMode === "free") {
     setStatus("¡Batalla libre iniciada! Tus aliados y enemigos elegidos ya se están atacando.");
   } else if (currentGameMode === "multiplayer") {
-    setStatus(`¡Duelo multijugador iniciado! Azul vs rojo de ${multiplayerOpponentName || "invitado"}.`);
+    setStatus(`¡Duelo multijugador iniciado! Azul (${getTeamPlayerName("blue")}) vs Rojo (${getTeamPlayerName("red")}).`);
   } else {
     setStatus("¡Batalla iniciada! Ahora si se atacan: melee golpea y distancia dispara.");
   }
@@ -2614,6 +2893,7 @@ function updateUI() {
 }
 
 function showLobby(message = "Volviste al lobby. Los niveles se reiniciaron.") {
+  hideWinnerMessage();
   battleStarted = false;
   battleWon = false;
   selectedUnitType = null;
@@ -2624,6 +2904,7 @@ function showLobby(message = "Volviste al lobby. Los niveles se reiniciaron.") {
   pendingInviteName = "";
   multiplayerBlueMoney = MULTIPLAYER_BUDGET;
   multiplayerRedMoney = MULTIPLAYER_BUDGET;
+  resetMultiplayerDraftState();
   currentLevel = 1;
   trophies = 0;
   money = levels[0].budget;
@@ -2705,6 +2986,7 @@ playerSearchInput.addEventListener("keydown", (event) => {
 });
 acceptInviteButton.addEventListener("click", acceptMultiplayerInvite);
 rejectInviteButton.addEventListener("click", rejectMultiplayerInvite);
+if (spinRouletteButton) spinRouletteButton.addEventListener("click", spinMultiplayerRoulette);
 backLobbyButton.addEventListener("click", () => showLobby());
 startBattleButton.addEventListener("click", startBattle);
 resetBattleButton.addEventListener("click", resetBattle);

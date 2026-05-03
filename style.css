@@ -713,10 +713,16 @@ button {
   box-shadow: 0 2px 0 rgba(0,0,0,0.45);
 }
 
-#game3d {
+.game-stage {
+  position: relative;
   width: min(1320px, 98vw);
   height: 700px;
   margin: 0 auto;
+}
+
+#game3d {
+  width: 100%;
+  height: 100%;
   border-radius: 22px;
   overflow: hidden;
   border: 5px solid #0b1220;
@@ -728,6 +734,49 @@ button {
   display: block;
   width: 100% !important;
   height: 100% !important;
+}
+
+.winner-banner {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(0,0,0,0.12), rgba(0,0,0,0.48));
+}
+
+.winner-banner div {
+  max-width: 92%;
+  border: 7px solid #111;
+  border-radius: 30px;
+  padding: 28px 42px;
+  font-size: clamp(34px, 7vw, 84px);
+  font-weight: 1000;
+  text-align: center;
+  color: white;
+  text-shadow: 6px 6px 0 #000;
+  box-shadow: 0 15px 0 rgba(0,0,0,0.45);
+  animation: winnerPop 0.55s ease-out;
+}
+
+.winner-banner.blue div {
+  background: linear-gradient(#4dabf7, #1864ab);
+}
+
+.winner-banner.red div {
+  background: linear-gradient(#ff6b6b, #c92a2a);
+}
+
+@keyframes winnerPop {
+  from {
+    transform: scale(0.55) rotate(-4deg);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
 }
 
 
@@ -1004,7 +1053,91 @@ button {
     flex-wrap: wrap;
   }
 
-  #game3d {
+  .game-stage {
     height: 560px;
   }
+}
+
+
+/* ======================= */
+/* RULETA Y DRAFT MULTIJUGADOR */
+/* ======================= */
+
+.roulette-box,
+.draft-info,
+.draft-list {
+  width: 100%;
+  background: rgba(0,0,0,0.32);
+  border: 3px solid #0b1220;
+  border-radius: 16px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.roulette-wheel {
+  width: 82px;
+  height: 82px;
+  border: 6px solid #111;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  font-weight: 900;
+  color: white;
+  text-shadow: 3px 3px 0 #000;
+  background: conic-gradient(#1c7ed6 0deg 180deg, #e03131 180deg 360deg);
+  box-shadow: 0 7px 0 rgba(0,0,0,0.45);
+}
+
+.roulette-wheel.spinning {
+  animation: rouletteSpin 0.16s linear infinite;
+}
+
+@keyframes rouletteSpin {
+  from { transform: rotate(0deg) scale(1); }
+  to { transform: rotate(360deg) scale(1.05); }
+}
+
+.roulette-info {
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 900;
+}
+
+.roulette-info span {
+  color: #ffd43b;
+  text-shadow: 2px 2px 0 #000;
+}
+
+.draft-info div,
+.draft-list span {
+  background: rgba(255,255,255,0.08);
+  border: 2px solid rgba(0,0,0,0.45);
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-weight: 900;
+}
+
+.unit-btn.locked {
+  opacity: 0.42;
+  filter: grayscale(1);
+  cursor: not-allowed;
+}
+
+.unit-btn.drafted-blue {
+  box-shadow: 0 0 0 4px #74c0fc, 0 6px 0 rgba(0,0,0,0.45);
+}
+
+.unit-btn.drafted-red {
+  box-shadow: 0 0 0 4px #ff8787, 0 6px 0 rgba(0,0,0,0.45);
+}
+
+.unit-btn.draft-full {
+  opacity: 0.55;
 }

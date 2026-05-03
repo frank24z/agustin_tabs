@@ -110,7 +110,7 @@
       <div class="multiplayer-card">
         <button class="multiplayer-close" id="closeMultiplayerPanel">✕</button>
         <h2>Multijugador</h2>
-        <p>Busca el nickname del jugador, envíale una invitación y espera que acepte. Tú serás el equipo azul y el jugador invitado será el equipo rojo.</p>
+        <p>Busca el nickname del jugador, envíale una invitación y espera que acepte. Después giran una ruleta: al que le toque azul empieza, y el rojo va después.</p>
 
         <div class="multiplayer-search-row">
           <input id="playerSearchInput" type="text" maxlength="16" placeholder="Nombre del jugador" autocomplete="off" />
@@ -195,10 +195,33 @@
 
 
     <div id="multiplayerToolbar" class="free-toolbar multiplayer-toolbar hidden">
-      <div class="free-title">Multijugador: tú eres azul. El invitado es rojo. Cada uno tiene $2000.</div>
+      <div class="free-title">Multijugador: ruleta de colores, turnos por equipo y luchadores únicos.</div>
+
+      <div class="roulette-box">
+        <div class="roulette-wheel" id="rouletteWheel">?</div>
+        <div class="roulette-info">
+          <strong id="rouletteNamesText">Jugador 1 vs Jugador 2</strong>
+          <span id="rouletteResultText">Gira la ruleta: al que le toque azul empieza, rojo va después.</span>
+        </div>
+        <button class="primary-btn" id="spinRouletteButton">Girar ruleta</button>
+      </div>
+
+      <div class="draft-info">
+        <div>Azul: <strong id="bluePlayerNameText">Jugador azul</strong></div>
+        <div>Rojo: <strong id="redPlayerNameText">Jugador rojo</strong></div>
+        <div>Turno: <strong id="draftTurnText">Esperando ruleta</strong></div>
+        <div>Límite: <strong>5 luchadores distintos por equipo</strong></div>
+      </div>
+
+      <div class="draft-list">
+        <span id="blueDraftText">Azul eligió: ninguno</span>
+        <span id="redDraftText">Rojo eligió: ninguno</span>
+        <span id="lockedDraftText">Bloqueados: ninguno</span>
+      </div>
+
       <button class="team-btn active" id="multiPlaceBlueButton">Turno azul</button>
-      <button class="team-btn" id="multiPlaceRedButton">Turno rojo invitado</button>
-      <span id="multiTeamText" class="free-team-text">Colocando: Azul</span>
+      <button class="team-btn" id="multiPlaceRedButton">Turno rojo</button>
+      <span id="multiTeamText" class="free-team-text">Primero gira la ruleta</span>
     </div>
 
     <div class="battle-toolbar">
@@ -207,7 +230,12 @@
       <button class="primary-btn" id="nextLevelButton" disabled>Siguiente nivel</button>
     </div>
 
-    <div id="game3d"></div>
+    <div class="game-stage">
+      <div id="game3d"></div>
+      <div id="winnerBanner" class="winner-banner hidden">
+        <div id="winnerBannerText">EL EQUIPO AZUL GANA</div>
+      </div>
+    </div>
   </section>
 
   <script type="importmap">
