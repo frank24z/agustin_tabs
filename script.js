@@ -80,10 +80,17 @@ const unitButtons = [...document.querySelectorAll(".unit-btn")];
    ESTADO DEL JUEGO
 ========================= */
 const ACCOUNT_STORAGE_KEY = "agustinTabs3DAccount";
+const SHOP_STORAGE_KEY = "agustinTabs3DShop";
+const MAP_STORAGE_KEY = "agustinTabs3DMap";
 const MULTIPLAYER_PLAYERS_KEY = "agustinTabs3DPlayers";
 const MULTIPLAYER_BUDGET = 2000;
 const MULTIPLAYER_MAX_FIGHTERS_PER_TEAM = 5;
 let playerAccount = null;
+let bankCoins = 2500;
+let unlockedFighters = new Set(["clubber", "shield", "spearman", "archer", "knight", "giant", "mage", "devil", "death", "god"]);
+let selectedMapTheme = localStorage.getItem(MAP_STORAGE_KEY) || "castle";
+let extraMapObjects = [];
+let audioCtx = null;
 
 let currentLevel = 1;
 let money = 500;
@@ -118,6 +125,100 @@ const FIELD = {
   blueMaxX: -1.2,
   redMinX: 1.2
 };
+
+const SHOP_FIGHTERS = [
+  "ninja", "samurai", "berserker", "paladin", "cannoneer", "vampire", "angel"
+];
+
+const MAP_THEMES = ["castle", "forest", "desert", "ice", "lava", "graveyard", "temple", "arena"];
+
+function loadShopProgress() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SHOP_STORAGE_KEY) || "{}");
+    if (Number.isFinite(saved.bankCoins)) bankCoins = saved.bankCoins;
+    if (Array.isArray(saved.unlocked)) unlockedFighters = new Set(saved.unlocked);
+  } catch (error) {}
+  ["clubber", "shield", "spearman", "archer", "knight", "giant", "mage", "devil", "death", "god"].forEach(type => unlockedFighters.add(type));
+}
+
+function saveShopProgress() {
+  localStorage.setItem(SHOP_STORAGE_KEY, JSON.stringify({
+    bankCoins,
+    unlocked: [...unlockedFighters]
+  }));
+}
+
+function isFighterUnlocked(type) {
+  return !unitTypes[type] || unitTypes[type].boss || unlockedFighters.has(type);
+}
+
+function addBankCoins(amount) {
+  bankCoins += amount;
+  saveShopProgress();
+  updateShopPanel();
+}
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+function playTone(freq = 440, duration = 0.12, type = "square", volume = 0.05) {
+  try {
+    initAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch (error) {}
+}
+
+function playSound(name) {
+  const sounds = {
+    click: [320, 0.06, "square", 0.03],
+    buy: [880, 0.12, "triangle", 0.05],
+    error: [120, 0.18, "sawtooth", 0.04],
+    hit: [180, 0.08, "square", 0.04],
+    sword: [620, 0.07, "sawtooth", 0.035],
+    arrow: [760, 0.08, "triangle", 0.035],
+    magic: [540, 0.16, "sine", 0.045],
+    cannon: [95, 0.22, "sawtooth", 0.06],
+    teleport: [980, 0.14, "sine", 0.05],
+    win: [740, 0.16, "triangle", 0.055],
+    boss: [70, 0.35, "sawtooth", 0.07]
+  };
+  const s = sounds[name] || sounds.click;
+  playTone(...s);
+  if (name === "win") setTimeout(() => playTone(980, 0.16, "triangle", 0.05), 140);
+  if (name === "buy") setTimeout(() => playTone(1180, 0.08, "triangle", 0.04), 100);
+}
+
+function getAttackSound(unit) {
+  if (!unit) return "hit";
+  if (unit.type === "devil") return "teleport";
+  if (unit.type === "god" || unit.type === "angel" || unit.type === "mage" || unit.type === "timeBoss") return "magic";
+  if (unit.type === "cannoneer") return "cannon";
+  if (unit.def.kind === "ranged" || unit.currentAttackKind === "ranged") return "arrow";
+  return "sword";
+}
+
+function addExtraMapObject(obj) {
+  extraMapObjects.push(obj);
+  scene.add(obj);
+  return obj;
+}
+
+function clearExtraMapObjects() {
+  while (extraMapObjects.length) scene.remove(extraMapObjects.pop());
+}
+
 
 /* =========================
    UNIDADES
@@ -409,6 +510,65 @@ const unitTypes = {
     pants: 0xa5d8ff,
     weapon: "angelStaff",
     projectileType: "light"
+  },
+  darkBoss: {
+    name: "Jefe Oscuro",
+    cost: 9999,
+    hp: 1200,
+    damage: 72,
+    range: 2.6,
+    moveSpeed: 2.25,
+    attackInterval: 1.05,
+    attackDuration: 0.5,
+    kind: "melee",
+    scale: 1.95,
+    color: 0x111111,
+    pants: 0x4a0000,
+    weapon: "scythe",
+    pushPower: 3.6,
+    pushRadius: 4.6,
+    boss: true
+  },
+  titanBoss: {
+    name: "Titán de Piedra",
+    cost: 9999,
+    hp: 1500,
+    damage: 95,
+    range: 2.9,
+    moveSpeed: 1.75,
+    attackInterval: 1.35,
+    attackDuration: 0.62,
+    kind: "melee",
+    scale: 2.25,
+    color: 0x868e96,
+    pants: 0x343a40,
+    weapon: "hammer",
+    pushPower: 4.0,
+    pushRadius: 5.2,
+    boss: true
+  },
+  timeBoss: {
+    name: "Señor del Tiempo",
+    cost: 9999,
+    hp: 1000,
+    damage: 40,
+    rangedDamage: 0,
+    range: 12,
+    preferredRange: 9,
+    retreatDistance: 3.4,
+    moveSpeed: 2.5,
+    attackInterval: 1.0,
+    attackDuration: 0.45,
+    projectileSpeed: 14,
+    kind: "ranged",
+    scale: 1.75,
+    color: 0x74c0fc,
+    pants: 0x0b7285,
+    weapon: "divine",
+    projectileType: "time",
+    paralysisDuration: 2.2,
+    paralysisDrainPerMillisecond: 0.6,
+    boss: true
   }
 };
 
@@ -516,7 +676,10 @@ const levels = [
       { type: "knight", x: 9, z: 4 },
       { type: "archer", x: 12, z: -6 },
       { type: "archer", x: 12, z: 6 },
-      { type: "mage", x: 12, z: 0 }
+      { type: "mage", x: 12, z: 0 },
+      { type: "darkBoss", x: 14, z: -2 },
+      { type: "titanBoss", x: 14, z: 3 },
+      { type: "timeBoss", x: 13, z: 7 }
     ]
   }
 ];
@@ -552,6 +715,19 @@ controls.target.set(0, 2.3, 0);
 controls.maxPolarAngle = Math.PI * 0.49;
 controls.minDistance = 8;
 controls.maxDistance = 50;
+controls.mouseButtons = {
+  LEFT: THREE.MOUSE.ROTATE,
+  MIDDLE: THREE.MOUSE.DOLLY,
+  RIGHT: THREE.MOUSE.PAN
+};
+controls.touches = {
+  ONE: THREE.TOUCH.ROTATE,
+  TWO: THREE.TOUCH.DOLLY_PAN
+};
+
+// No usamos el evento start/end de OrbitControls para bloquear la colocación,
+// porque ese evento se dispara incluso con un clic normal.
+// Ahora distinguimos solo por distancia: clic corto coloca, arrastre mueve cámara.
 
 renderer.domElement.addEventListener("contextmenu", (event) => event.preventDefault());
 
@@ -607,13 +783,16 @@ scene.add(grid);
 
 const placementPlane = new THREE.Mesh(
   new THREE.PlaneGeometry(40, 34),
-  new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
+  new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, side: THREE.DoubleSide })
 );
 placementPlane.rotation.x = -Math.PI / 2;
+placementPlane.visible = false;
 scene.add(placementPlane);
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
+const placementGroundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const placementPoint = new THREE.Vector3();
 
 /* =========================
    DECORACION LOW POLY
@@ -961,6 +1140,292 @@ function buildCastleMap() {
 
 buildCastleMap();
 
+function setCastleVisibility(visible) {
+  castleGroup.visible = visible;
+}
+
+function createThemeMat(color, emissive = 0x000000, emissiveIntensity = 0) {
+  return makeMat(color, emissive, emissiveIntensity);
+}
+
+function addThemeObject(obj) {
+  obj.traverse?.((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  addExtraMapObject(obj);
+  return obj;
+}
+
+function addThemeBox(x, y, z, w, h, d, color, emissive = 0x000000, emissiveIntensity = 0) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), createThemeMat(color, emissive, emissiveIntensity));
+  mesh.position.set(x, y + h / 2, z);
+  return addThemeObject(mesh);
+}
+
+function addThemeCylinder(x, y, z, rTop, rBottom, h, color, sides = 10, emissive = 0x000000, emissiveIntensity = 0) {
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBottom, h, sides), createThemeMat(color, emissive, emissiveIntensity));
+  mesh.position.set(x, y + h / 2, z);
+  return addThemeObject(mesh);
+}
+
+function addThemeCone(x, z, r, h, color, sides = 7, emissive = 0x000000, emissiveIntensity = 0) {
+  const mesh = new THREE.Mesh(new THREE.ConeGeometry(r, h, sides), createThemeMat(color, emissive, emissiveIntensity));
+  mesh.position.set(x, h / 2, z);
+  return addThemeObject(mesh);
+}
+
+function addThemeRock(x, z, s = 1, color = 0x7d8597) {
+  const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.75 * s, 0), createThemeMat(color));
+  rock.position.set(x, 0.5 * s, z);
+  rock.rotation.set(0.25 * s, x * 0.02, z * 0.03);
+  return addThemeObject(rock);
+}
+
+function addThemeTree(x, z, s = 1, trunkColor = 0x8d5524, leafColor = 0x2f9e44) {
+  const tree = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16 * s, 0.24 * s, 1.45 * s, 7), createThemeMat(trunkColor));
+  trunk.position.y = 0.72 * s;
+  const leaves1 = new THREE.Mesh(new THREE.ConeGeometry(0.85 * s, 1.6 * s, 7), createThemeMat(leafColor));
+  leaves1.position.y = 1.75 * s;
+  const leaves2 = new THREE.Mesh(new THREE.ConeGeometry(0.65 * s, 1.25 * s, 7), createThemeMat(leafColor));
+  leaves2.position.y = 2.45 * s;
+  tree.add(trunk, leaves1, leaves2);
+  tree.position.set(x, 0, z);
+  return addThemeObject(tree);
+}
+
+function addThemeCactus(x, z, s = 1) {
+  const cactus = new THREE.Group();
+  const matCactus = createThemeMat(0x2b8a3e);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * s, 0.28 * s, 1.8 * s, 7), matCactus);
+  body.position.y = 0.9 * s;
+  const arm1 = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * s, 0.1 * s, 0.72 * s, 7), matCactus);
+  arm1.rotation.z = Math.PI / 2;
+  arm1.position.set(0.38 * s, 1.15 * s, 0);
+  const arm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * s, 0.1 * s, 0.62 * s, 7), matCactus);
+  arm2.rotation.z = Math.PI / 2;
+  arm2.position.set(-0.32 * s, 0.85 * s, 0);
+  cactus.add(body, arm1, arm2);
+  cactus.position.set(x, 0, z);
+  return addThemeObject(cactus);
+}
+
+function addThemeCrystal(x, z, s = 1, color = 0xa5d8ff, emissive = 0x74c0fc) {
+  const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.55 * s, 0), createThemeMat(color, emissive, 0.25));
+  crystal.position.set(x, 0.75 * s, z);
+  crystal.scale.y = 1.55;
+  crystal.rotation.y = x * 0.11;
+  return addThemeObject(crystal);
+}
+
+function addThemeLavaPool(x, z, w, d) {
+  const lava = new THREE.Mesh(
+    new THREE.BoxGeometry(w, 0.08, d),
+    createThemeMat(0xff3b30, 0xff3b30, 0.85)
+  );
+  lava.position.set(x, 0.035, z);
+  addThemeObject(lava);
+  const rim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.35, 0.09, d + 0.35), createThemeMat(0x111111));
+  rim.position.set(x, 0.01, z);
+  rim.receiveShadow = true;
+  addExtraMapObject(rim);
+  return lava;
+}
+
+function addThemeBackWall(color, trimColor) {
+  addThemeBox(0, 0, -16.4, 38, 2.1, 0.6, color);
+  for (let x = -18; x <= 18; x += 2.4) {
+    addThemeBox(x, 2.1, -16.4, 0.95, 0.55, 0.72, trimColor);
+  }
+}
+
+function addThemeTileLines(color = 0x4f5351) {
+  for (let x = -18; x <= 18; x += 2) {
+    addThemeBox(x, 0.015, 0, 0.028, 0.025, 28.4, color);
+  }
+  for (let z = -14; z <= 14; z += 2) {
+    addThemeBox(0, 0.018, z, 36.4, 0.025, 0.028, color);
+  }
+}
+
+function buildForestTheme() {
+  addThemeTileLines(0x1f6f3a);
+  addThemeBackWall(0x2b8a3e, 0x1b5e20);
+  for (const x of [-17, -14, -11, 11, 14, 17]) {
+    addThemeTree(x, -12.2, 0.95 + Math.abs(x) * 0.01, 0x6b4f2a, 0x1b5e20);
+    addThemeTree(x, 12.2, 1.05, 0x6b4f2a, 0x2f9e44);
+  }
+  for (const z of [-10, -5, 5, 10]) {
+    addThemeTree(-18.2, z, 0.85, 0x6b4f2a, 0x2f9e44);
+    addThemeTree(18.2, z, 0.85, 0x6b4f2a, 0x1b5e20);
+  }
+  addThemeBox(-3.8, 0, 12.4, 5.2, 0.55, 1.1, 0x6b4f2a);
+  addThemeBox(4.0, 0, -12.4, 5.6, 0.55, 1.1, 0x6b4f2a);
+  addThemeRock(-12.5, 9.5, 0.9, 0x5c677d);
+  addThemeRock(12.8, 9.4, 1.0, 0x5c677d);
+  addThemeRock(-11.7, -9.8, 0.8, 0x5c677d);
+  addThemeRock(11.9, -9.9, 0.8, 0x5c677d);
+}
+
+function buildDesertTheme() {
+  addThemeTileLines(0xb8894c);
+  addThemeBackWall(0xb08968, 0x8c5e35);
+  for (const x of [-16, 16]) {
+    addThemeCone(x, -11.4, 1.6, 3.0, 0xc08c35, 4);
+    addThemeCone(x, 10.4, 1.3, 2.5, 0xc08c35, 4);
+  }
+  for (const x of [-13, -9, 9, 13]) {
+    addThemeCactus(x, -12.2, 0.9);
+    addThemeCactus(x, 12.1, 0.75);
+  }
+  addThemeBox(-5.8, 0, -12.6, 2.0, 2.7, 2.0, 0xb08968);
+  addThemeBox(5.8, 0, -12.6, 2.0, 2.7, 2.0, 0xb08968);
+  addThemeBox(0, 0, 12.4, 7.0, 0.45, 1.0, 0x8c5e35);
+  addThemeRock(-14, 7, 0.85, 0xa16207);
+  addThemeRock(14, 7, 0.85, 0xa16207);
+}
+
+function buildIceTheme() {
+  addThemeTileLines(0x74c0fc);
+  addThemeBackWall(0xa5d8ff, 0xe7f5ff);
+  for (const x of [-16, -12, 12, 16]) {
+    addThemeCrystal(x, -11.5, 1.0);
+    addThemeCrystal(x, 11.5, 0.85, 0xd0ebff, 0xa5d8ff);
+  }
+  for (const z of [-9, -4, 4, 9]) {
+    addThemeCone(-18.2, z, 0.75, 2.5, 0xe7f5ff, 6, 0xa5d8ff, 0.1);
+    addThemeCone(18.2, z, 0.75, 2.5, 0xe7f5ff, 6, 0xa5d8ff, 0.1);
+  }
+  addThemeBox(0, 0, -12.4, 6.0, 0.18, 1.35, 0x74c0fc, 0x74c0fc, 0.18);
+  addThemeBox(0, 0, 12.2, 5.5, 0.18, 1.25, 0x74c0fc, 0x74c0fc, 0.18);
+  addThemeRock(-10.7, 10.2, 1.0, 0xd0ebff);
+  addThemeRock(10.7, 10.2, 1.0, 0xd0ebff);
+}
+
+function buildLavaTheme() {
+  addThemeTileLines(0x6b1d1d);
+  addThemeBackWall(0x111111, 0x3b1f1f);
+  addThemeLavaPool(-12, -12.2, 4.5, 1.35);
+  addThemeLavaPool(0, -12.2, 4.8, 1.35);
+  addThemeLavaPool(12, -12.2, 4.5, 1.35);
+  addThemeLavaPool(-15.5, 11.4, 3.4, 1.2);
+  addThemeLavaPool(15.5, 11.4, 3.4, 1.2);
+  for (const x of [-16, 16]) {
+    addThemeCone(x, 7.5, 1.55, 3.0, 0x111111, 7);
+    addThemeCone(x, 7.5, 0.6, 1.1, 0xff3b30, 7, 0xff3b30, 0.65).position.y += 2.25;
+  }
+  for (const z of [-8, 0, 8]) {
+    addThemeRock(-18, z, 1.0, 0x1f1f1f);
+    addThemeRock(18, z, 1.0, 0x1f1f1f);
+  }
+}
+
+function buildGraveyardTheme() {
+  addThemeTileLines(0x343a40);
+  addThemeBackWall(0x2b2d42, 0x111111);
+  for (const x of [-16, -12, -8, 8, 12, 16]) {
+    addThemeBox(x, 0, -12.4, 0.65, 1.0, 0.22, 0xadb5bd);
+    addThemeBox(x, 0, 12.2, 0.65, 1.0, 0.22, 0xadb5bd);
+  }
+  for (const x of [-15, 15]) {
+    addThemeBox(x, 0, -8, 0.38, 1.8, 0.38, 0x3b2f2f);
+    addThemeCone(x, -8, 0.95, 1.8, 0x111111, 6);
+    addThemeBox(x, 0, 8, 0.38, 1.8, 0.38, 0x3b2f2f);
+    addThemeCone(x, 8, 0.95, 1.8, 0x111111, 6);
+  }
+  for (const z of [-10, -5, 5, 10]) {
+    addThemeRock(-18.2, z, 0.85, 0x495057);
+    addThemeRock(18.2, z, 0.85, 0x495057);
+  }
+  addThemeBox(0, 0, -12.6, 5.0, 0.35, 0.9, 0x212529);
+  addThemeBox(0, 0, 12.4, 5.0, 0.35, 0.9, 0x212529);
+}
+
+function buildTempleTheme() {
+  addThemeTileLines(0x7f6f4f);
+  addThemeBackWall(0x8d7a55, 0x5f533b);
+  for (const x of [-16, -12, 12, 16]) {
+    addThemeTree(x, -12.3, 0.95, 0x6b4f2a, 0x2b8a3e);
+    addThemeTree(x, 12.2, 0.95, 0x6b4f2a, 0x2f9e44);
+  }
+  for (const x of [-7, -4, 4, 7]) {
+    addThemeCylinder(x, 0, -12.7, 0.32, 0.4, 2.6, 0xc2a878, 8);
+    addThemeCylinder(x, 0, 12.7, 0.32, 0.4, 2.6, 0xc2a878, 8);
+  }
+  addThemeBox(0, 0, -12.9, 7.8, 0.55, 1.2, 0x9c7f4d);
+  addThemeBox(0, 0.55, -12.9, 6.2, 0.45, 1.05, 0xb08d57);
+  addThemeBox(0, 0, 12.9, 7.8, 0.55, 1.2, 0x9c7f4d);
+  addThemeBox(0, 0.55, 12.9, 6.2, 0.45, 1.05, 0xb08d57);
+  addThemeRock(-13.5, 9.5, 0.8, 0x8d7a55);
+  addThemeRock(13.5, 9.5, 0.8, 0x8d7a55);
+}
+
+function buildArenaTheme() {
+  addThemeTileLines(0x8c6d4a);
+  addThemeBackWall(0x8c6d4a, 0x6f5135);
+  for (const x of [-17, -13, -9, 9, 13, 17]) {
+    addThemeCylinder(x, 0, -12.9, 0.35, 0.42, 2.4, 0xb08968, 10);
+    addThemeCylinder(x, 0, 12.9, 0.35, 0.42, 2.4, 0xb08968, 10);
+  }
+  addThemeBox(0, 0, -12.8, 19, 0.55, 1.3, 0x9c6644);
+  addThemeBox(0, 0.55, -13.0, 17, 0.55, 1.1, 0xb08968);
+  addThemeBox(0, 0, 12.8, 19, 0.55, 1.3, 0x9c6644);
+  addThemeBox(0, 0.55, 13.0, 17, 0.55, 1.1, 0xb08968);
+  for (const z of [-10, -6, 6, 10]) {
+    addThemeBox(-18.5, 0, z, 0.6, 1.4, 1.4, 0x9c6644);
+    addThemeBox(18.5, 0, z, 0.6, 1.4, 1.4, 0x9c6644);
+  }
+  addThemeRock(-15, 8, 0.7, 0x6f5135);
+  addThemeRock(15, 8, 0.7, 0x6f5135);
+}
+
+function setMapTheme(theme = selectedMapTheme) {
+  selectedMapTheme = MAP_THEMES.includes(theme) ? theme : "castle";
+  localStorage.setItem(MAP_STORAGE_KEY, selectedMapTheme);
+  clearExtraMapObjects();
+
+  const colors = {
+    castle: { bg: 0x87ceeb, fog: 0x87ceeb, ground: 0x7d8597, hemi: 1.18, sun: 1.2 },
+    forest: { bg: 0x8ce99a, fog: 0x8ce99a, ground: 0x2f9e44, hemi: 1.2, sun: 1.15 },
+    desert: { bg: 0xffec99, fog: 0xffec99, ground: 0xd8a15d, hemi: 1.25, sun: 1.35 },
+    ice: { bg: 0xd0ebff, fog: 0xd0ebff, ground: 0xa5d8ff, hemi: 1.3, sun: 1.1 },
+    lava: { bg: 0x2b0a0a, fog: 0x2b0a0a, ground: 0x3b1f1f, hemi: 0.82, sun: 0.75 },
+    graveyard: { bg: 0x20242b, fog: 0x20242b, ground: 0x495057, hemi: 0.92, sun: 0.7 },
+    temple: { bg: 0x95d5b2, fog: 0x95d5b2, ground: 0x7f6f4f, hemi: 1.18, sun: 1.15 },
+    arena: { bg: 0xffd8a8, fog: 0xffd8a8, ground: 0xb08968, hemi: 1.25, sun: 1.3 }
+  }[selectedMapTheme];
+
+  scene.background = new THREE.Color(colors.bg);
+  scene.fog.color.setHex(colors.fog);
+  ground.material.color.setHex(colors.ground);
+  hemiLight.intensity = colors.hemi;
+  sun.intensity = colors.sun;
+
+  setCastleVisibility(selectedMapTheme === "castle");
+
+  if (selectedMapTheme === "forest") buildForestTheme();
+  if (selectedMapTheme === "desert") buildDesertTheme();
+  if (selectedMapTheme === "ice") buildIceTheme();
+  if (selectedMapTheme === "lava") buildLavaTheme();
+  if (selectedMapTheme === "graveyard") buildGraveyardTheme();
+  if (selectedMapTheme === "temple") buildTempleTheme();
+  if (selectedMapTheme === "arena") buildArenaTheme();
+
+  blueZone.visible = true;
+  redZone.visible = true;
+  divider.visible = true;
+  grid.visible = selectedMapTheme !== "lava";
+  ensureBattleMapVisible();
+
+  if (typeof updateMapPanel === "function") updateMapPanel();
+}
+
+
+
+
 /* =========================
    CAMARA CON TECLADO
 ========================= */
@@ -1256,23 +1721,25 @@ function createUnit(type, team, x, z) {
   torso.position.y = 1.35;
   bodyRoot.add(torso);
 
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.62, 0.62), makeMat(0xffd8a8));
+  const baseSkinColor = type === "death" ? 0xe9ecef : (type === "god" ? 0xfff7d6 : 0xffd8a8);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.62, 0.62), makeMat(baseSkinColor));
   head.position.y = 2.1;
   bodyRoot.add(head);
 
-  const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.08, 0.03), makeMat(0x111111));
+  const eyeColor = type === "death" ? 0x000000 : 0x111111;
+  const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.08, 0.03), makeMat(eyeColor));
   eyeL.position.set(-0.13, 2.14, 0.325);
   bodyRoot.add(eyeL);
 
-  const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.08, 0.03), makeMat(0x111111));
+  const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.08, 0.03), makeMat(eyeColor));
   eyeR.position.set(0.13, 2.14, 0.325);
   bodyRoot.add(eyeR);
 
-  const leftArmData = pivotedBox(0.23, 0.8, 0.23, 0xffd8a8);
+  const leftArmData = pivotedBox(0.23, 0.8, 0.23, baseSkinColor);
   leftArmData.pivot.position.set(-0.54, 1.74, 0);
   bodyRoot.add(leftArmData.pivot);
 
-  const rightArmData = pivotedBox(0.23, 0.8, 0.23, 0xffd8a8);
+  const rightArmData = pivotedBox(0.23, 0.8, 0.23, baseSkinColor);
   rightArmData.pivot.position.set(0.54, 1.74, 0);
   bodyRoot.add(rightArmData.pivot);
 
@@ -1288,6 +1755,16 @@ function createUnit(type, team, x, z) {
   weapon.position.set(0.12, -0.24, 0);
   rightArmData.pivot.add(weapon);
 
+  function addWearable(geometry, color, position, rotation = null, emissive = 0x000000, emissiveIntensity = 0) {
+    const mesh = new THREE.Mesh(geometry, makeMat(color, emissive, emissiveIntensity));
+    mesh.position.copy(position);
+    if (rotation) {
+      mesh.rotation.set(rotation.x || 0, rotation.y || 0, rotation.z || 0);
+    }
+    bodyRoot.add(mesh);
+    return mesh;
+  }
+
   if (type === "shield") {
     const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.09, 7), makeMat(0x4dabf7));
     shield.rotation.z = Math.PI / 2;
@@ -1299,22 +1776,29 @@ function createUnit(type, team, x, z) {
     const helmet = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.45, 6), makeMat(0xd0d4da));
     helmet.position.y = 2.5;
     bodyRoot.add(helmet);
+    addWearable(new THREE.BoxGeometry(0.9, 1.02, 0.08), 0xd0d4da, new THREE.Vector3(0, 1.34, 0.2));
   }
 
   if (type === "archer") {
     const hood = new THREE.Mesh(new THREE.ConeGeometry(0.39, 0.5, 6), makeMat(0x2b8a3e));
     hood.position.y = 2.45;
     bodyRoot.add(hood);
+    addWearable(new THREE.BoxGeometry(0.84, 1.0, 0.08), 0x2b8a3e, new THREE.Vector3(0, 1.34, 0.2));
+    addWearable(new THREE.BoxGeometry(0.22, 0.75, 0.12), 0x8d5524, new THREE.Vector3(-0.28, 1.58, -0.26), new THREE.Euler(0.4, 0, -0.4));
   }
 
   if (type === "mage") {
     const hat = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.75, 6), makeMat(0xae3ec9));
     hat.position.y = 2.6;
     bodyRoot.add(hat);
+    addWearable(new THREE.CylinderGeometry(0.48, 0.56, 1.08, 7), 0xae3ec9, new THREE.Vector3(0, 1.32, 0));
   }
 
 
   if (type === "devil") {
+    torso.material = makeMat(0x8f1d1d);
+    addWearable(new THREE.BoxGeometry(0.88, 1.1, 0.18), 0x2b0b0b, new THREE.Vector3(0, 1.35, -0.18));
+    addWearable(new THREE.BoxGeometry(0.3, 0.3, 0.16), 0x3b0a0a, new THREE.Vector3(0, 1.85, 0.27));
     for (const x of [-0.22, 0.22]) {
       const horn = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.42, 6), makeMat(0x111111));
       horn.position.set(x, 2.55, 0);
@@ -1324,34 +1808,78 @@ function createUnit(type, team, x, z) {
     tail.rotation.x = Math.PI / 2.5;
     tail.position.set(0, 1.15, -0.45);
     bodyRoot.add(tail);
+    const cape = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.25, 0.08), makeMat(0x2b0b0b));
+    cape.position.set(0, 1.35, -0.34);
+    bodyRoot.add(cape);
   }
 
   if (type === "death") {
-    const hood = new THREE.Mesh(new THREE.ConeGeometry(0.43, 0.62, 6), makeMat(0x111111));
-    hood.position.y = 2.48;
-    bodyRoot.add(hood);
+    torso.material = makeMat(0x151515);
+    leftArmData.mesh.material = makeMat(0xe9ecef);
+    rightArmData.mesh.material = makeMat(0xe9ecef);
+    leftLegData.mesh.material = makeMat(0x111111);
+    rightLegData.mesh.material = makeMat(0x111111);
+    head.material = makeMat(0xf1f3f5);
+    eyeL.scale.set(1.2, 1.2, 1);
+    eyeR.scale.set(1.2, 1.2, 1);
+    addWearable(new THREE.CylinderGeometry(0.5, 0.62, 1.15, 7), 0x111111, new THREE.Vector3(0, 1.3, 0));
+    addWearable(new THREE.ConeGeometry(0.55, 0.9, 7), 0x0b0b0b, new THREE.Vector3(0, 2.25, 0.02));
+    addWearable(new THREE.BoxGeometry(0.12, 0.24, 0.04), 0xf8f9fa, new THREE.Vector3(-0.16, 2.0, 0.33));
+    addWearable(new THREE.BoxGeometry(0.12, 0.24, 0.04), 0xf8f9fa, new THREE.Vector3(0.16, 2.0, 0.33));
+    for (const x of [-0.18, -0.06, 0.06, 0.18]) {
+      addWearable(new THREE.BoxGeometry(0.06, 0.3, 0.04), 0xf8f9fa, new THREE.Vector3(x, 1.35, 0.29));
+    }
+    addWearable(new THREE.BoxGeometry(0.4, 0.08, 0.04), 0xf8f9fa, new THREE.Vector3(0, 1.55, 0.28));
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.04, 0.04), makeMat(0x111111));
+    mouth.position.set(0, 1.92, 0.33);
+    bodyRoot.add(mouth);
+    for (const x of [-0.07, 0, 0.07]) {
+      const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.08, 0.03), makeMat(0xf8f9fa));
+      tooth.position.set(x, 1.88, 0.35);
+      bodyRoot.add(tooth);
+    }
   }
 
   if (type === "god") {
+    torso.material = makeMat(0xfff8dc);
+    leftLegData.mesh.material = makeMat(0xffec99);
+    rightLegData.mesh.material = makeMat(0xffec99);
+    addWearable(new THREE.BoxGeometry(0.86, 1.15, 0.08), 0xf8f9fa, new THREE.Vector3(0, 1.32, 0.22));
+    addWearable(new THREE.BoxGeometry(0.14, 1.05, 0.09), 0xffd43b, new THREE.Vector3(0, 1.28, 0.27), null, 0xffd43b, 0.2);
     const halo = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.035, 8, 24), makeMat(0xfff3bf, 0xfff3bf, 0.9));
     halo.rotation.x = Math.PI / 2;
     halo.position.y = 2.62;
     bodyRoot.add(halo);
+    const beard = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.28, 6), makeMat(0xf8f9fa));
+    beard.position.set(0, 1.86, 0.29);
+    bodyRoot.add(beard);
+    for (const x of [-0.28, 0.28]) {
+      const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), makeMat(0xfff3bf, 0xfff3bf, 0.15));
+      shoulder.position.set(x, 1.78, 0);
+      bodyRoot.add(shoulder);
+    }
   }
 
   if (type === "ninja") {
     const mask = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.22, 0.66), makeMat(0x111111));
     mask.position.y = 2.17;
     bodyRoot.add(mask);
+    addWearable(new THREE.BoxGeometry(0.86, 1.02, 0.06), 0x111111, new THREE.Vector3(0, 1.34, 0.22));
+    addWearable(new THREE.BoxGeometry(0.18, 0.9, 0.05), 0x495057, new THREE.Vector3(0, 1.3, 0.26));
   }
 
   if (type === "samurai") {
     const helmet = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.35, 0.25, 8), makeMat(0x7f2704));
     helmet.position.y = 2.48;
     bodyRoot.add(helmet);
+    addWearable(new THREE.BoxGeometry(0.95, 1.0, 0.08), 0xb3541e, new THREE.Vector3(0, 1.35, 0.2));
+    for (const x of [-0.42, 0.42]) {
+      addWearable(new THREE.BoxGeometry(0.2, 0.2, 0.42), 0x7f2704, new THREE.Vector3(x, 1.75, 0));
+    }
   }
 
   if (type === "berserker") {
+    addWearable(new THREE.BoxGeometry(0.92, 0.6, 0.07), 0x6f1d1b, new THREE.Vector3(0, 1.48, 0.22));
     for (const x of [-0.24, 0.24]) {
       const horn = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.34, 6), makeMat(0xf8f9fa));
       horn.position.set(x, 2.52, 0);
@@ -1360,6 +1888,8 @@ function createUnit(type, team, x, z) {
   }
 
   if (type === "paladin") {
+    addWearable(new THREE.BoxGeometry(0.86, 1.05, 0.08), 0xf8f9fa, new THREE.Vector3(0, 1.32, 0.2));
+    addWearable(new THREE.BoxGeometry(0.14, 1.0, 0.09), 0xffd43b, new THREE.Vector3(0, 1.3, 0.25));
     const crown = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.35, 8), makeMat(0xffd43b, 0xffd43b, 0.25));
     crown.position.y = 2.48;
     bodyRoot.add(crown);
@@ -1369,20 +1899,180 @@ function createUnit(type, team, x, z) {
     const cap = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.18, 0.72), makeMat(0x343a40));
     cap.position.y = 2.48;
     bodyRoot.add(cap);
+    addWearable(new THREE.BoxGeometry(0.9, 0.98, 0.08), 0x495057, new THREE.Vector3(0, 1.34, 0.2));
+    addWearable(new THREE.BoxGeometry(0.22, 0.22, 0.1), 0xf08c00, new THREE.Vector3(0, 1.72, 0.27));
   }
 
   if (type === "vampire") {
     const cape = new THREE.Mesh(new THREE.BoxGeometry(0.86, 1.2, 0.08), makeMat(0x240046));
     cape.position.set(0, 1.35, -0.34);
     bodyRoot.add(cape);
+    addWearable(new THREE.BoxGeometry(0.84, 1.0, 0.08), 0x5a189a, new THREE.Vector3(0, 1.36, 0.18));
+    for (const x of [-0.17, 0.17]) {
+      const collar = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.3, 6), makeMat(0xf8f9fa));
+      collar.position.set(x, 1.88, 0.12);
+      collar.rotation.z = x < 0 ? 0.5 : -0.5;
+      bodyRoot.add(collar);
+    }
   }
 
   if (type === "angel") {
+    addWearable(new THREE.BoxGeometry(0.85, 1.06, 0.08), 0xf8f9fa, new THREE.Vector3(0, 1.33, 0.2));
+    addWearable(new THREE.BoxGeometry(0.12, 1.0, 0.08), 0xa5d8ff, new THREE.Vector3(0, 1.3, 0.26));
     for (const x of [-0.52, 0.52]) {
       const wing = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.95, 6), makeMat(0xf8f9fa, 0xffffff, 0.18));
       wing.rotation.z = x < 0 ? -0.65 : 0.65;
       wing.position.set(x, 1.65, -0.42);
       bodyRoot.add(wing);
+    }
+  }
+
+  function addFaceDetail(geometry, color, x, y, z = 0.33, rotation = null, emissive = 0x000000, emissiveIntensity = 0) {
+    const mesh = new THREE.Mesh(geometry, makeMat(color, emissive, emissiveIntensity));
+    mesh.position.set(x, y, z);
+    if (rotation) mesh.rotation.set(rotation.x || 0, rotation.y || 0, rotation.z || 0);
+    bodyRoot.add(mesh);
+    return mesh;
+  }
+
+  function addBrowPair(color, tilt = 0.24, y = 2.27, width = 0.18, emissive = 0x000000, emissiveIntensity = 0) {
+    addFaceDetail(new THREE.BoxGeometry(width, 0.03, 0.03), color, -0.14, y, 0.33, new THREE.Euler(0, 0, -tilt), emissive, emissiveIntensity);
+    addFaceDetail(new THREE.BoxGeometry(width, 0.03, 0.03), color, 0.14, y, 0.33, new THREE.Euler(0, 0, tilt), emissive, emissiveIntensity);
+  }
+
+  function addMouth(color, width = 0.22, y = 1.9) {
+    return addFaceDetail(new THREE.BoxGeometry(width, 0.035, 0.03), color, 0, y);
+  }
+
+  if (type !== "death" && type !== "ninja") {
+    addMouth(type === "angel" ? 0xff8787 : 0x8d5524, type === "giant" ? 0.3 : 0.22, type === "giant" ? 1.86 : 1.9);
+  }
+
+  switch (type) {
+    case "clubber": {
+      addBrowPair(0x5c3d2e, 0.15, 2.27, 0.16);
+      addFaceDetail(new THREE.BoxGeometry(0.07, 0.07, 0.05), 0xc68642, 0, 2.02, 0.34);
+      break;
+    }
+    case "shield": {
+      addBrowPair(0x343a40, 0.35, 2.27, 0.16);
+      addFaceDetail(new THREE.BoxGeometry(0.16, 0.03, 0.03), 0x5c677d, 0, 1.88, 0.34);
+      break;
+    }
+    case "spearman": {
+      addBrowPair(0x495057, 0.2, 2.27, 0.15);
+      addFaceDetail(new THREE.BoxGeometry(0.22, 0.06, 0.03), 0x5c3d2e, 0, 1.96, 0.34);
+      addFaceDetail(new THREE.BoxGeometry(0.07, 0.08, 0.04), 0xc68642, 0, 2.03, 0.34);
+      break;
+    }
+    case "archer": {
+      addBrowPair(0x1b4332, 0.25, 2.27, 0.16);
+      addFaceDetail(new THREE.BoxGeometry(0.28, 0.04, 0.03), 0x2b8a3e, 0, 2.19, 0.34);
+      break;
+    }
+    case "knight": {
+      addBrowPair(0x6c757d, 0.18, 2.24, 0.14);
+      addFaceDetail(new THREE.BoxGeometry(0.42, 0.08, 0.05), 0xd0d4da, 0, 2.17, 0.34);
+      break;
+    }
+    case "giant": {
+      addBrowPair(0x5c3d2e, 0.12, 2.28, 0.22);
+      addFaceDetail(new THREE.BoxGeometry(0.12, 0.12, 0.06), 0xc68642, 0, 2.0, 0.35);
+      addFaceDetail(new THREE.BoxGeometry(0.28, 0.04, 0.03), 0x6b2d00, 0, 1.85, 0.34);
+      break;
+    }
+    case "mage": {
+      addBrowPair(0x5a189a, 0.26, 2.28, 0.16, 0xae3ec9, 0.15);
+      addFaceDetail(new THREE.ConeGeometry(0.11, 0.2, 5), 0x5a189a, 0, 1.8, 0.31);
+      break;
+    }
+    case "devil": {
+      eyeL.material = makeMat(0xff6b6b, 0xff0000, 0.95);
+      eyeR.material = makeMat(0xff6b6b, 0xff0000, 0.95);
+      addBrowPair(0x111111, 0.42, 2.28, 0.16);
+      addFaceDetail(new THREE.ConeGeometry(0.03, 0.08, 4), 0xf8f9fa, -0.06, 1.88, 0.34, new THREE.Euler(Math.PI, 0, 0));
+      addFaceDetail(new THREE.ConeGeometry(0.03, 0.08, 4), 0xf8f9fa, 0.06, 1.88, 0.34, new THREE.Euler(Math.PI, 0, 0));
+      break;
+    }
+    case "death": {
+      addFaceDetail(new THREE.BoxGeometry(0.22, 0.025, 0.03), 0x111111, 0, 1.9, 0.34);
+      addFaceDetail(new THREE.BoxGeometry(0.03, 0.16, 0.03), 0x111111, 0, 2.02, 0.34);
+      addFaceDetail(new THREE.BoxGeometry(0.14, 0.025, 0.03), 0x111111, 0, 1.77, 0.34);
+      break;
+    }
+    case "god": {
+      addBrowPair(0xf8f9fa, 0.1, 2.28, 0.16, 0xfff3bf, 0.15);
+      addFaceDetail(new THREE.ConeGeometry(0.11, 0.2, 6), 0xf8f9fa, 0, 1.8, 0.31);
+      break;
+    }
+    case "ninja": {
+      eyeL.material = makeMat(0xf8f9fa);
+      eyeR.material = makeMat(0xf8f9fa);
+      addBrowPair(0x111111, 0.34, 2.24, 0.14);
+      break;
+    }
+    case "samurai": {
+      addBrowPair(0x7f2704, 0.22, 2.27, 0.16);
+      addFaceDetail(new THREE.BoxGeometry(0.24, 0.05, 0.03), 0x5c3d2e, 0, 1.96, 0.34);
+      addFaceDetail(new THREE.BoxGeometry(0.44, 0.05, 0.03), 0xf03e3e, 0, 2.22, 0.34);
+      break;
+    }
+    case "berserker": {
+      addBrowPair(0x6f1d1b, 0.35, 2.27, 0.17);
+      addFaceDetail(new THREE.ConeGeometry(0.12, 0.22, 5), 0x6f1d1b, 0, 1.82, 0.31);
+      addFaceDetail(new THREE.BoxGeometry(0.03, 0.18, 0.02), 0xf03e3e, 0.18, 2.02, 0.34, new THREE.Euler(0, 0, 0.45));
+      break;
+    }
+    case "paladin": {
+      addBrowPair(0xffd43b, 0.12, 2.27, 0.16, 0xffd43b, 0.2);
+      addFaceDetail(new THREE.BoxGeometry(0.1, 0.1, 0.03), 0xffd43b, 0, 2.03, 0.34, null, 0xffd43b, 0.18);
+      break;
+    }
+    case "cannoneer": {
+      addBrowPair(0x212529, 0.18, 2.27, 0.16);
+      addFaceDetail(new THREE.BoxGeometry(0.15, 0.12, 0.04), 0x111111, -0.13, 2.12, 0.34);
+      addFaceDetail(new THREE.BoxGeometry(0.24, 0.06, 0.03), 0x5c3d2e, 0.06, 1.95, 0.34);
+      break;
+    }
+    case "vampire": {
+      eyeL.material = makeMat(0xff8787, 0xff0000, 0.6);
+      eyeR.material = makeMat(0xff8787, 0xff0000, 0.6);
+      addBrowPair(0x240046, 0.25, 2.27, 0.16);
+      addFaceDetail(new THREE.ConeGeometry(0.03, 0.08, 4), 0xf8f9fa, -0.05, 1.88, 0.34, new THREE.Euler(Math.PI, 0, 0));
+      addFaceDetail(new THREE.ConeGeometry(0.03, 0.08, 4), 0xf8f9fa, 0.05, 1.88, 0.34, new THREE.Euler(Math.PI, 0, 0));
+      break;
+    }
+    case "angel": {
+      eyeL.material = makeMat(0xa5d8ff, 0xa5d8ff, 0.25);
+      eyeR.material = makeMat(0xa5d8ff, 0xa5d8ff, 0.25);
+      addBrowPair(0xf8f9fa, 0.08, 2.27, 0.14);
+      addFaceDetail(new THREE.BoxGeometry(0.2, 0.03, 0.03), 0xff8787, 0, 1.9, 0.34);
+      break;
+    }
+    case "darkBoss": {
+      eyeL.material = makeMat(0xff0000, 0xff0000, 1);
+      eyeR.material = makeMat(0xff0000, 0xff0000, 1);
+      addBrowPair(0xff0000, 0.45, 2.4, 0.26, 0xff0000, 0.5);
+      addWearable(new THREE.ConeGeometry(0.6, 0.9, 7), 0x070707, new THREE.Vector3(0, 2.75, 0));
+      addWearable(new THREE.BoxGeometry(1.0, 1.5, 0.08), 0x070707, new THREE.Vector3(0, 1.45, -0.36));
+      break;
+    }
+    case "titanBoss": {
+      head.material = makeMat(0xadb5bd);
+      eyeL.material = makeMat(0xff922b, 0xff922b, 0.8);
+      eyeR.material = makeMat(0xff922b, 0xff922b, 0.8);
+      addWearable(new THREE.DodecahedronGeometry(0.32, 0), 0x495057, new THREE.Vector3(-0.45, 1.9, 0));
+      addWearable(new THREE.DodecahedronGeometry(0.32, 0), 0x495057, new THREE.Vector3(0.45, 1.9, 0));
+      addFaceDetail(new THREE.BoxGeometry(0.35, 0.05, 0.04), 0x212529, 0, 1.85, 0.35);
+      break;
+    }
+    case "timeBoss": {
+      eyeL.material = makeMat(0x74c0fc, 0x74c0fc, 1);
+      eyeR.material = makeMat(0x74c0fc, 0x74c0fc, 1);
+      addBrowPair(0x74c0fc, 0.2, 2.35, 0.22, 0x74c0fc, 0.6);
+      addWearable(new THREE.TorusGeometry(0.52, 0.04, 8, 24), 0x74c0fc, new THREE.Vector3(0, 2.65, 0), new THREE.Euler(Math.PI / 2, 0, 0), 0x74c0fc, 0.75);
+      addWearable(new THREE.CylinderGeometry(0.52, 0.62, 1.4, 7), 0x0b7285, new THREE.Vector3(0, 1.32, 0), null, 0x74c0fc, 0.12);
+      break;
     }
   }
 
@@ -1450,7 +2140,166 @@ function spawnHitEffect(position, color = 0xfff3bf, size = 0.22) {
   mesh.position.copy(position);
   scene.add(mesh);
 
-  effects.push({ mesh, life: 0.25, maxLife: 0.25 });
+  effects.push({ kind: "burst", mesh, life: 0.25, maxLife: 0.25, rise: 0.25 });
+}
+
+function spawnRingEffect(position, color = 0xfff3bf, radius = 0.34, life = 0.38) {
+  const mesh = new THREE.Mesh(
+    new THREE.TorusGeometry(radius, Math.max(0.025, radius * 0.14), 8, 24),
+    makeMat(color, color, 0.65)
+  );
+  mesh.position.copy(position);
+  mesh.rotation.x = Math.PI / 2;
+  scene.add(mesh);
+  effects.push({ kind: "ring", mesh, life, maxLife: life, rise: 0.18 });
+}
+
+function spawnSlashEffect(position, color = 0xffffff, scale = 0.75, rotationZ = 0.55, life = 0.18) {
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.75 * scale, 0.18 * scale),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, side: THREE.DoubleSide })
+  );
+  mesh.position.copy(position);
+  mesh.position.y += 0.08;
+  mesh.rotation.y = rotationZ;
+  mesh.rotation.z = 0.22;
+  scene.add(mesh);
+  effects.push({ kind: "slash", mesh, life, maxLife: life, rise: 0.08 });
+}
+
+function spawnAuraColumn(position, color = 0xfff3bf, scale = 1, life = 0.3) {
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12 * scale, 0.24 * scale, 0.95 * scale, 8, 1, true),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
+  );
+  mesh.position.copy(position);
+  scene.add(mesh);
+  effects.push({ kind: "aura", mesh, life, maxLife: life, rise: 0.28 });
+}
+
+function triggerCharacterEffect(unit, target, phase = "start", attackKind = unit?.currentAttackKind || unit?.def?.kind) {
+  if (!unit) return;
+  const selfPos = unit.group.position.clone();
+  selfPos.y = 1.2 * unit.def.scale;
+  const targetPos = target ? target.group.position.clone() : selfPos.clone();
+  targetPos.y = 1.2 * (target?.def?.scale || unit.def.scale);
+  const dirRot = unit.team === "blue" ? 0.55 : -0.55;
+
+  switch (unit.type) {
+    case "clubber":
+      if (phase === "hit") {
+        spawnHitEffect(targetPos, 0xd9480f, 0.14);
+        spawnRingEffect(targetPos, 0x8d5524, 0.18);
+      }
+      break;
+    case "shield":
+      if (phase === "hit") {
+        spawnRingEffect(targetPos, 0x74c0fc, 0.28);
+        spawnSlashEffect(targetPos, 0xd0d4da, 0.55, dirRot * 0.7);
+      }
+      break;
+    case "spearman":
+      if (phase === "hit") {
+        spawnSlashEffect(targetPos, 0xa5d8ff, 0.8, dirRot);
+      }
+      break;
+    case "archer":
+      if (phase === "start") {
+        spawnHitEffect(selfPos, 0xb2f2bb, 0.1);
+      }
+      break;
+    case "knight":
+      if (phase === "hit") {
+        spawnHitEffect(targetPos, 0xe9ecef, 0.18);
+        spawnSlashEffect(targetPos, 0xf8f9fa, 0.75, dirRot);
+      }
+      break;
+    case "giant":
+      if (phase === "hit") {
+        spawnRingEffect(targetPos, 0xff922b, 0.46);
+        spawnHitEffect(targetPos, 0xff922b, 0.26);
+      }
+      break;
+    case "mage":
+      if (phase === "start") {
+        spawnAuraColumn(selfPos, 0xe599f7, 0.8, 0.24);
+        spawnRingEffect(selfPos, 0xe599f7, 0.22);
+      }
+      break;
+    case "devil":
+      if (phase === "start") {
+        spawnRingEffect(selfPos, 0xff6b6b, 0.3);
+        spawnAuraColumn(selfPos, 0xc92a2a, 0.9, 0.22);
+      } else if (phase === "hit") {
+        spawnSlashEffect(targetPos, 0xff6b6b, 1.0, dirRot);
+        spawnHitEffect(targetPos, 0xff6b6b, 0.2);
+      }
+      break;
+    case "death":
+      if (phase === "start") {
+        spawnAuraColumn(selfPos, 0x495057, 0.85, 0.24);
+      } else if (phase === "hit") {
+        spawnRingEffect(targetPos, 0xadb5bd, 0.32);
+        spawnSlashEffect(targetPos, 0xd0d4da, 1.0, dirRot);
+      }
+      break;
+    case "god":
+      if (phase === "start") {
+        spawnRingEffect(selfPos, attackKind === "ranged" ? 0x74c0fc : 0xffd43b, 0.34);
+        spawnAuraColumn(selfPos, 0xfff3bf, 0.95, 0.28);
+        if (attackKind === "ranged") spawnRingEffect(targetPos, 0x74c0fc, 0.24);
+      } else if (phase === "hit") {
+        spawnSlashEffect(targetPos, 0xfff3bf, 0.9, dirRot);
+      }
+      break;
+    case "ninja":
+      if (phase === "start") {
+        spawnHitEffect(selfPos, 0x495057, 0.12);
+      } else if (phase === "hit") {
+        spawnSlashEffect(targetPos, 0xf8f9fa, 0.62, dirRot);
+        spawnHitEffect(targetPos, 0x343a40, 0.1);
+      }
+      break;
+    case "samurai":
+      if (phase === "hit") {
+        spawnSlashEffect(targetPos, 0xfff3bf, 1.05, dirRot);
+        spawnSlashEffect(targetPos, 0xff922b, 0.85, -dirRot);
+      }
+      break;
+    case "berserker":
+      if (phase === "start") {
+        spawnRingEffect(selfPos, 0xfa5252, 0.22);
+      } else if (phase === "hit") {
+        spawnHitEffect(targetPos, 0xfa5252, 0.22);
+        spawnSlashEffect(targetPos, 0xfa5252, 0.85, dirRot);
+      }
+      break;
+    case "paladin":
+      if (phase === "start") {
+        spawnRingEffect(selfPos, 0xffd43b, 0.28);
+      } else if (phase === "hit") {
+        spawnAuraColumn(targetPos, 0xffec99, 0.7, 0.18);
+      }
+      break;
+    case "cannoneer":
+      if (phase === "start") {
+        spawnHitEffect(selfPos, 0xff922b, 0.16);
+      }
+      break;
+    case "vampire":
+      if (phase === "hit") {
+        spawnHitEffect(targetPos, 0xff8787, 0.18);
+        spawnRingEffect(targetPos, 0x7b2cbf, 0.22);
+      }
+      break;
+    case "angel":
+      if (phase === "start") {
+        spawnRingEffect(selfPos, 0xfff3bf, 0.28);
+      } else if (phase === "hit") {
+        spawnAuraColumn(targetPos, 0xffffff, 0.7, 0.18);
+      }
+      break;
+  }
 }
 
 function updateEffects(dt) {
@@ -1458,8 +2307,28 @@ function updateEffects(dt) {
     const effect = effects[i];
     effect.life -= dt;
     const t = Math.max(0, effect.life / effect.maxLife);
-    effect.mesh.scale.setScalar(1 + (1 - t) * 2.5);
-    effect.mesh.material.opacity = t;
+    const progress = 1 - t;
+
+    if (effect.kind === "ring") {
+      effect.mesh.scale.setScalar(1 + progress * 1.8);
+      effect.mesh.position.y += (effect.rise || 0) * dt;
+      effect.mesh.material.opacity = t * 0.8;
+      effect.mesh.rotation.z += dt * 1.6;
+    } else if (effect.kind === "slash") {
+      effect.mesh.scale.set(1 + progress * 1.4, 1 + progress * 0.2, 1);
+      effect.mesh.position.y += (effect.rise || 0) * dt;
+      effect.mesh.material.opacity = t * 0.95;
+    } else if (effect.kind === "aura") {
+      effect.mesh.scale.setScalar(1 + progress * 0.8);
+      effect.mesh.position.y += (effect.rise || 0) * dt;
+      effect.mesh.material.opacity = t * 0.35;
+      effect.mesh.rotation.y += dt * 3.2;
+    } else {
+      effect.mesh.scale.setScalar(1 + progress * 2.5);
+      effect.mesh.position.y += (effect.rise || 0) * dt;
+      effect.mesh.material.opacity = t;
+    }
+
     effect.mesh.material.transparent = true;
 
     if (effect.life <= 0) {
@@ -1639,11 +2508,14 @@ function moveAway(unit, target, dt) {
 }
 
 function startAttack(unit, target, attackKind = unit.def.kind) {
+  playSound(getAttackSound(unit));
   unit.cooldown = unit.def.attackInterval;
   unit.attackAnim = unit.def.attackDuration;
   unit.attackTarget = target;
   unit.currentAttackKind = attackKind;
   unit.hitDone = false;
+
+  triggerCharacterEffect(unit, target, "start", attackKind);
 
   if (attackKind === "ranged") {
     spawnProjectile(unit, target);
@@ -1723,8 +2595,11 @@ function teleportNearTarget(unit, target) {
 
   const newPos = unit.group.position.clone();
   newPos.y = 1.1 * unit.def.scale;
+  playSound("teleport");
   spawnHitEffect(oldPos, 0xff6b6b, 0.42);
+  spawnRingEffect(oldPos, 0xff6b6b, 0.45);
   spawnHitEffect(newPos, 0xff6b6b, 0.42);
+  spawnRingEffect(newPos, 0xff6b6b, 0.45);
   return true;
 }
 
@@ -1762,6 +2637,7 @@ function healUnit(unit, amount) {
 
 function applyDamage(target, damage, attackerTeam) {
   if (target.dead) return;
+  if (damage > 0) playSound("hit");
 
   target.hp -= damage;
   target.hurtFlash = 0.15;
@@ -1895,6 +2771,7 @@ function updateBattle(dt) {
       if (progress >= 0.48 && targetStillClose) {
         const hitDamage = unit.def.meleeDamage ?? unit.def.damage;
         applyDamage(unit.attackTarget, hitDamage, unit.team);
+        triggerCharacterEffect(unit, unit.attackTarget, "hit", "melee");
 
         if (unit.def.pushPower) {
           pushEnemiesFrom(unit, unit.attackTarget, unit.def.pushPower, unit.def.pushRadius || 2.8);
@@ -1919,6 +2796,52 @@ function updateBattle(dt) {
 /* =========================
    ANIMACIONES DE CORRER Y ATACAR
 ========================= */
+function applyCharacterSpecificAnimation(unit, dt, strike = 0) {
+  const t = unit.moveCycle;
+  if (unit.type === "ninja") {
+    unit.bodyRoot.rotation.z += Math.sin(t * 2.4) * 0.05;
+    unit.group.position.y = Math.max(0, unit.group.position.y + Math.abs(Math.sin(t * 3)) * 0.002);
+  }
+  if (unit.type === "samurai") {
+    unit.rightArm.rotation.z = -0.25 - strike * 0.55;
+    unit.leftArm.rotation.z = 0.22;
+  }
+  if (unit.type === "berserker") {
+    unit.bodyRoot.rotation.x = Math.sin(t * 2) * 0.045;
+    unit.rightArm.rotation.z = Math.sin(t * 3) * 0.16;
+  }
+  if (unit.type === "giant" || unit.type === "titanBoss") {
+    unit.bodyRoot.rotation.x = Math.sin(t) * 0.03;
+    if (unit.moving) unit.group.position.y = Math.abs(Math.sin(t)) * 0.018;
+  }
+  if (unit.type === "death" || unit.type === "darkBoss") {
+    unit.bodyRoot.position.y += Math.sin(t * 1.4) * 0.025;
+    unit.leftArm.rotation.z = -0.1;
+  }
+  if (unit.type === "angel") {
+    unit.bodyRoot.position.y += Math.sin(t * 2) * 0.03;
+    unit.leftArm.rotation.z = Math.sin(t * 3) * 0.18;
+    unit.rightArm.rotation.z = -Math.sin(t * 3) * 0.18;
+  }
+  if (unit.type === "devil") {
+    unit.bodyRoot.rotation.y += Math.sin(t * 2) * 0.04;
+  }
+  if (unit.type === "god") {
+    unit.bodyRoot.position.y += Math.sin(t * 1.6) * 0.025;
+    unit.leftArm.rotation.z = 0.18 + Math.sin(t * 2.5) * 0.1;
+  }
+  if (unit.type === "vampire") {
+    unit.bodyRoot.rotation.z += Math.sin(t * 2.2) * 0.04;
+  }
+  if (unit.type === "cannoneer") {
+    unit.rightArm.rotation.x -= strike * 0.25;
+    unit.bodyRoot.position.z = -strike * 0.03;
+  }
+  if (unit.type === "timeBoss") {
+    unit.bodyRoot.rotation.y += dt * 1.2;
+  }
+}
+
 function animateUnit(unit, dt) {
   if (unit.dead) {
     unit.group.rotation.z = THREE.MathUtils.lerp(unit.group.rotation.z, unit.team === "blue" ? -1.25 : 1.25, dt * 5);
@@ -1948,12 +2871,14 @@ function animateUnit(unit, dt) {
   unit.leftArm.rotation.x = swingB * 0.58;
   unit.rightArm.rotation.x = swingA * 0.58;
 
+  let strike = 0;
+
   if (unit.attackAnim > 0) {
     unit.attackAnim -= dt;
     if (unit.attackAnim < 0) unit.attackAnim = 0;
 
     const progress = 1 - unit.attackAnim / unit.def.attackDuration;
-    const strike = Math.sin(progress * Math.PI);
+    strike = Math.sin(progress * Math.PI);
 
     const animIsMelee = unit.currentAttackKind === "melee" || (unit.def.kind === "melee" && unit.currentAttackKind !== "ranged");
 
@@ -1969,6 +2894,8 @@ function animateUnit(unit, dt) {
   } else {
     unit.bodyRoot.rotation.y = THREE.MathUtils.lerp(unit.bodyRoot.rotation.y, 0, dt * 8);
   }
+
+  applyCharacterSpecificAnimation(unit, dt, strike || 0);
 
   if (unit.paralyzedTime > 0) {
     unit.head.scale.setScalar(0.96);
@@ -2079,7 +3006,8 @@ function updateMultiplayerDraftUI() {
     const ownTeamOwns = multiplayerDraft[multiplayerDraftTurn].includes(type);
     const enemyOwns = multiplayerDraft[multiplayerDraftTurn === "blue" ? "red" : "blue"].includes(type);
     const mustPlaceOther = multiplayerMustPlaceSelected && selectedUnitType && type !== selectedUnitType;
-    const locked = !multiplayerRouletteSpun || enemyOwns || (currentFull && !ownTeamOwns) || mustPlaceOther;
+    const shopLocked = !isFighterUnlocked(type);
+    const locked = shopLocked || !multiplayerRouletteSpun || enemyOwns || (currentFull && !ownTeamOwns) || mustPlaceOther;
 
     btn.disabled = locked;
     btn.classList.toggle("locked", locked);
@@ -2087,7 +3015,9 @@ function updateMultiplayerDraftUI() {
     btn.classList.toggle("drafted-red", redOwns);
     btn.classList.toggle("draft-full", currentFull && !ownTeamOwns && !enemyOwns);
 
-    if (!multiplayerRouletteSpun) {
+    if (shopLocked) {
+      btn.title = "Bloqueado: cómpralo en la tienda.";
+    } else if (!multiplayerRouletteSpun) {
       btn.title = "Primero gira la ruleta.";
     } else if (mustPlaceOther) {
       btn.title = "Primero coloca el luchador ya escogido antes de cambiar.";
@@ -2156,6 +3086,13 @@ function spinMultiplayerRoulette() {
 
 function selectUnit(type) {
   const def = unitTypes[type];
+  if (!isFighterUnlocked(type)) {
+    selectedUnitType = null;
+    unitButtons.forEach(btn => btn.classList.remove("selected"));
+    playSound("error");
+    setStatus(`${def.name} está bloqueado. Cómpralo en la tienda del lobby.`);
+    return;
+  }
 
   if (currentGameMode === "multiplayer") {
     if (!multiplayerRouletteSpun) {
@@ -2358,22 +3295,102 @@ function placeUnitAt(x, z) {
   }
 }
 
+let placementPointerStart = null;
+let lastPlacementClickTime = 0;
+let lastPointerWasDrag = false;
+
+function getPlacementPointFromScreen(clientX, clientY) {
+  const rect = renderer.domElement.getBoundingClientRect();
+
+  if (!rect.width || !rect.height) return null;
+
+  mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+
+  // Plano matemático fijo en Y=0. No depende de objetos del mapa.
+  // Así castillos, árboles, lava, hielo, barriles o paredes nunca bloquean el clic.
+  const foundPoint = raycaster.ray.intersectPlane(placementGroundPlane, placementPoint);
+  if (!foundPoint) return null;
+
+  return placementPoint.clone();
+}
+
+function tryPlaceFromPointer(event) {
+  const now = performance.now();
+  if (now - lastPlacementClickTime < 140) return;
+  lastPlacementClickTime = now;
+
+  if (gameScreen.classList.contains("hidden")) return;
+  if (battleStarted) return;
+  if (event.button !== undefined && event.button !== 0) return;
+
+  if (!selectedUnitType) {
+    setStatus("Primero elige una unidad de la barra. Luego haz clic en el mapa.");
+    return;
+  }
+
+  const point = getPlacementPointFromScreen(event.clientX, event.clientY);
+  if (!point) {
+    setStatus("No pude detectar el suelo. Acerca un poco la cámara e inténtalo otra vez.");
+    return;
+  }
+
+  placeUnitAt(point.x, point.z);
+}
+
 renderer.domElement.addEventListener("pointerdown", (event) => {
   if (gameScreen.classList.contains("hidden")) return;
   if (battleStarted) return;
   if (event.button !== 0) return;
 
-  const rect = renderer.domElement.getBoundingClientRect();
-  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  lastPointerWasDrag = false;
+  placementPointerStart = {
+    pointerId: event.pointerId,
+    x: event.clientX,
+    y: event.clientY,
+    time: performance.now()
+  };
+});
 
-  raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObject(placementPlane);
+window.addEventListener("pointerup", (event) => {
+  if (!placementPointerStart) return;
 
-  if (hits.length > 0) {
-    const p = hits[0].point;
-    placeUnitAt(p.x, p.z);
+  const dx = event.clientX - placementPointerStart.x;
+  const dy = event.clientY - placementPointerStart.y;
+  const moved = Math.hypot(dx, dy);
+  const elapsed = performance.now() - placementPointerStart.time;
+  const startedOnCanvas = placementPointerStart.pointerId === event.pointerId || event.pointerId === undefined;
+  placementPointerStart = null;
+
+  if (!startedOnCanvas) return;
+
+  // Clic corto = poner personaje.
+  // Arrastrar con clic izquierdo = mover/rotar cámara con OrbitControls.
+  // Antes se usaba cameraIsMovingWithMouse, pero eso bloqueaba TODOS los clics.
+  if (moved > 9 || elapsed > 750) {
+    lastPointerWasDrag = true;
+    return;
   }
+
+  lastPointerWasDrag = false;
+  tryPlaceFromPointer(event);
+});
+
+renderer.domElement.addEventListener("pointercancel", () => {
+  placementPointerStart = null;
+  lastPointerWasDrag = false;
+});
+
+renderer.domElement.addEventListener("click", (event) => {
+  // Respaldo: algunos navegadores/OrbitControls no siempre dejan llegar el pointerup
+  // como esperamos. Si fue arrastre, no coloca; si fue clic normal, coloca.
+  if (lastPointerWasDrag) {
+    lastPointerWasDrag = false;
+    return;
+  }
+  tryPlaceFromPointer(event);
 });
 
 /* =========================
@@ -2388,6 +3405,7 @@ function checkWinner() {
     battleWon = false;
     nextLevelButton.disabled = true;
     showWinnerMessage("red");
+    playSound("win");
 
     if (currentGameMode === "multiplayer") {
       setStatus(`Multijugador: ganó Rojo (${getTeamPlayerName("red")}).`);
@@ -2402,6 +3420,7 @@ function checkWinner() {
     battleStarted = false;
     battleWon = true;
     showWinnerMessage("blue");
+    playSound("win");
 
     if (currentGameMode === "multiplayer") {
       nextLevelButton.disabled = true;
@@ -2418,6 +3437,7 @@ function checkWinner() {
     const reward = levels[currentLevel - 1].reward;
     money += reward;
     trophies += 10;
+    addBankCoins(reward);
 
     if (currentLevel < levels.length) {
       nextLevelButton.disabled = false;
@@ -2567,7 +3587,14 @@ function spawnEnemiesForLevel() {
   const level = levels[currentLevel - 1];
 
   for (const enemy of level.enemies) {
-    units.push(createUnit(enemy.type, "red", enemy.x, enemy.z));
+    const created = createUnit(enemy.type, "red", enemy.x, enemy.z);
+    units.push(created);
+    if (created.def.boss) {
+      const pos = created.group.position.clone();
+      pos.y = 1.8 * created.def.scale;
+      spawnRingEffect(pos, 0xff0000, 0.7, 0.55);
+      playSound("boss");
+    }
   }
 }
 
@@ -2848,6 +3875,7 @@ function nextLevel() {
   if (currentLevel >= levels.length) return;
 
   currentLevel++;
+  setMapTheme(selectedMapTheme);
   resetBattle();
 }
 
@@ -2886,14 +3914,28 @@ function updateUI() {
   if (blueCountText) blueCountText.textContent = blueAlive;
   redCountText.textContent = redAlive;
 
-  lobbyCoins.textContent = money;
+  lobbyCoins.textContent = bankCoins;
   lobbyLevel.textContent = currentLevel;
   lobbyTrophies.textContent = trophies;
+
+  // IMPORTANTE: no reconstruir la tienda ni los mapas en cada frame.
+  // Antes updateUI se ejecutaba durante la batalla y recreaba esos paneles todo el tiempo,
+  // dejando el juego pesado y haciendo que pareciera que el mapa/clic se rompía.
   updateModePanel();
+  updateUnitLockButtons();
+
+  const shopPanel = document.getElementById("shopPanel");
+  const mapPanel = document.getElementById("mapPanel");
+  if (shopPanel && !shopPanel.classList.contains("hidden")) updateShopPanel();
+  if (mapPanel && !mapPanel.classList.contains("hidden")) updateMapPanel();
 }
 
 function showLobby(message = "Volviste al lobby. Los niveles se reiniciaron.") {
   hideWinnerMessage();
+  placementPointerStart = null;
+  lastPointerWasDrag = false;
+  lastPlacementClickTime = 0;
+  controls.enabled = true;
   battleStarted = false;
   battleWon = false;
   selectedUnitType = null;
@@ -2927,6 +3969,10 @@ function showGame(mode = "campaign") {
   currentGameMode = mode;
   freePlacementTeam = "blue";
   multiplayerPlacementTeam = "blue";
+  placementPointerStart = null;
+  lastPointerWasDrag = false;
+  lastPlacementClickTime = 0;
+  controls.enabled = true;
 
   if (currentGameMode !== "multiplayer") {
     multiplayerOpponentName = "";
@@ -2935,15 +3981,148 @@ function showGame(mode = "campaign") {
   accountScreen.classList.add("hidden");
   lobbyScreen.classList.add("hidden");
   gameScreen.classList.remove("hidden");
-  resizeRenderer();
+
+  setMapTheme(selectedMapTheme);
+  resetCameraView();
+  repairGameView();
   updateModePanel();
   resetBattle();
+  updateUnitLockButtons();
+
+  requestAnimationFrame(() => {
+    resetCameraView();
+    repairGameView();
+  });
+  setTimeout(repairGameView, 80);
+  setTimeout(repairGameView, 250);
 }
 
 function simpleLobbyMessage(text) {
   lobbyMessage.textContent = text;
 }
 
+function ensureExtraLobbyPanels() {
+  if (!document.getElementById("shopPanel")) {
+    const panel = document.createElement("section");
+    panel.id = "shopPanel";
+    panel.className = "multiplayer-panel hidden";
+    panel.innerHTML = `<div class="multiplayer-card big-shop-card"><button class="multiplayer-close" id="closeShopPanel">✕</button><h2>🛒 Tienda de luchadores</h2><p>Monedas guardadas: <strong id="shopCoinsText">0</strong>. Gana campaña para conseguir más monedas.</p><div id="shopList" class="shop-list"></div></div>`;
+    lobbyScreen.appendChild(panel);
+    document.getElementById("closeShopPanel").addEventListener("click", () => panel.classList.add("hidden"));
+  }
+  if (!document.getElementById("mapPanel")) {
+    const panel = document.createElement("section");
+    panel.id = "mapPanel";
+    panel.className = "multiplayer-panel hidden";
+    panel.innerHTML = `<div class="multiplayer-card big-shop-card"><button class="multiplayer-close" id="closeMapPanel">✕</button><h2>🗺️ Mapas</h2><p>Escoge el mapa antes de jugar. El mapa elegido se guarda y se usa en campaña, modo libre y multijugador.</p><div id="mapList" class="shop-list map-list"></div></div>`;
+    lobbyScreen.appendChild(panel);
+    document.getElementById("closeMapPanel").addEventListener("click", () => panel.classList.add("hidden"));
+  }
+}
+
+function updateShopPanel() {
+  ensureExtraLobbyPanels();
+  const coins = document.getElementById("shopCoinsText");
+  const list = document.getElementById("shopList");
+  if (!list) return;
+  coins.textContent = bankCoins;
+  list.innerHTML = "";
+  SHOP_FIGHTERS.forEach(type => {
+    const def = unitTypes[type];
+    const unlocked = isFighterUnlocked(type);
+    const card = document.createElement("div");
+    card.className = `shop-item ${unlocked ? "owned" : ""}`;
+    card.innerHTML = `<strong>${def.name}</strong><span>$${def.cost}</span><p>${def.kind === "ranged" ? "Distancia" : "Cuerpo"} | ${def.weapon}</p><button class="primary-btn">${unlocked ? "Comprado" : "Comprar"}</button>`;
+    const btn = card.querySelector("button");
+    btn.disabled = unlocked;
+    btn.addEventListener("click", () => buyFighter(type));
+    list.appendChild(card);
+  });
+  updateUnitLockButtons();
+}
+
+function buyFighter(type) {
+  const def = unitTypes[type];
+  if (!def || isFighterUnlocked(type)) return;
+  if (bankCoins < def.cost) {
+    playSound("error");
+    lobbyMessage.textContent = `No tienes monedas suficientes para comprar ${def.name}.`;
+    return;
+  }
+  bankCoins -= def.cost;
+  unlockedFighters.add(type);
+  saveShopProgress();
+  playSound("buy");
+  lobbyMessage.textContent = `Compraste a ${def.name}. Ya puedes usarlo en todos los modos.`;
+  updateUI();
+  updateShopPanel();
+}
+
+function updateMapPanel() {
+  ensureExtraLobbyPanels();
+  const list = document.getElementById("mapList");
+  if (!list) return;
+  const names = { castle: "Castillo", forest: "Bosque", desert: "Desierto", ice: "Hielo", lava: "Lava", graveyard: "Cementerio", temple: "Templo", arena: "Arena" };
+  const descriptions = {
+    castle: "Castillo medieval con torres y patio de piedra.",
+    forest: "Bosque con árboles, troncos y rocas.",
+    desert: "Desierto con cactus, arena y ruinas.",
+    ice: "Hielo con cristales y ambiente congelado.",
+    lava: "Lava con volcanes y rocas oscuras.",
+    graveyard: "Cementerio oscuro con lápidas y árboles secos.",
+    temple: "Templo antiguo con columnas y selva.",
+    arena: "Arena de combate con columnas y gradas."
+  };
+  list.innerHTML = "";
+  MAP_THEMES.forEach(theme => {
+    const card = document.createElement("div");
+    card.className = `shop-item ${theme === selectedMapTheme ? "owned" : ""}`;
+    card.innerHTML = `<strong>${names[theme]}</strong><span>${theme === selectedMapTheme ? "Activo" : "Mapa"}</span><p>${descriptions[theme] || "Mapa con decoraciones distintas."}</p><button class="primary-btn">${theme === selectedMapTheme ? "Elegido" : "Elegir"}</button>`;
+    card.querySelector("button").addEventListener("click", () => {
+      setMapTheme(theme);
+      playSound("click");
+      lobbyMessage.textContent = `Mapa elegido: ${names[theme]}. Presiona JUGAR, MODO LIBRE o MULTIJUGADOR para usarlo.`;
+    });
+    list.appendChild(card);
+  });
+}
+
+function openShopPanel() {
+  ensureExtraLobbyPanels();
+  updateShopPanel();
+  document.getElementById("shopPanel").classList.remove("hidden");
+}
+
+function openMapPanel() {
+  ensureExtraLobbyPanels();
+  updateMapPanel();
+  document.getElementById("mapPanel").classList.remove("hidden");
+}
+
+function updateUnitLockButtons() {
+  unitButtons.forEach(btn => {
+    const type = btn.dataset.unit;
+    const lockedByShop = !isFighterUnlocked(type);
+
+    btn.classList.toggle("shop-locked", lockedByShop);
+
+    // IMPORTANTE:
+    // El modo multijugador bloquea botones por la ruleta y el draft.
+    // Antes esos botones podían quedar disabled al volver a campaña o modo libre,
+    // y por eso no se podía elegir ni colocar personajes en el mapa.
+    if (currentGameMode !== "multiplayer") {
+      btn.disabled = lockedByShop;
+      btn.classList.remove("locked", "drafted-blue", "drafted-red", "draft-full");
+      btn.title = lockedByShop
+        ? "Este luchador está bloqueado. Cómpralo en la tienda."
+        : "Haz clic para elegir este luchador.";
+    } else if (lockedByShop) {
+      btn.disabled = true;
+      btn.classList.add("locked");
+      btn.title = "Este luchador está bloqueado. Cómpralo en la tienda.";
+    }
+  });
+}
 
 accountForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -3005,10 +4184,10 @@ unitButtons.forEach(btn => {
 });
 
 document.getElementById("settingsBtn").addEventListener("click", () => simpleLobbyMessage("Ajustes todavia no disponible."));
-document.getElementById("shopBtn").addEventListener("click", () => simpleLobbyMessage("Tienda todavia no disponible."));
+document.getElementById("shopBtn").addEventListener("click", openShopPanel);
 document.getElementById("fightersBtn").addEventListener("click", () => simpleLobbyMessage("Luchadores: los 7 originales + Diablo, La Muerte, Dios, Ninja, Samurái, Berserker, Paladín, Cañonero, Vampiro y Ángel."));
 document.getElementById("missionsBtn").addEventListener("click", () => simpleLobbyMessage("Mision: gana los 10 niveles."));
-document.getElementById("eventsBtn").addEventListener("click", () => simpleLobbyMessage("Eventos: Campaña, Modo Libre y Multijugador con invitaciones."));
+document.getElementById("eventsBtn").addEventListener("click", openMapPanel);
 document.getElementById("clubBtn").addEventListener("click", () => simpleLobbyMessage("Club todavia no disponible."));
 document.getElementById("passBtn").addEventListener("click", resetProgress);
 document.getElementById("newsBtn").addEventListener("click", () => simpleLobbyMessage("Noticias: multijugador agregado. Busca un jugador, envía invitación y pelea con $2000 cada uno."));
@@ -3017,11 +4196,87 @@ document.getElementById("newsBtn").addEventListener("click", () => simpleLobbyMe
    RENDER Y LOOP
 ========================= */
 function resizeRenderer() {
-  const width = Math.max(1, gameContainer.clientWidth);
-  const height = Math.max(1, gameContainer.clientHeight);
+  const stage = gameContainer.parentElement;
+  const rect = gameContainer.getBoundingClientRect();
+
+  // Cuando el juego viene desde el lobby, a veces el navegador tarda un instante
+  // en calcular el tamaño del div 3D. Si el canvas queda en 1x1, parece que
+  // "no hay mapa". Por eso usamos medidas de respaldo estables.
+  const width = Math.max(
+    320,
+    Math.floor(rect.width || gameContainer.clientWidth || stage?.clientWidth || 1320)
+  );
+  const height = Math.max(
+    420,
+    Math.floor(rect.height || gameContainer.clientHeight || stage?.clientHeight || 700)
+  );
+
   renderer.setSize(width, height, false);
+  renderer.domElement.style.width = "100%";
+  renderer.domElement.style.height = "100%";
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
+}
+
+function resetCameraView() {
+  camera.position.set(0, 15, 24);
+  controls.target.set(0, 2.3, 0);
+  controls.update();
+}
+
+function ensureBattleMapVisible() {
+  // No cambia modos ni luchadores; solo asegura que el mapa base siga en escena.
+  if (!ground.parent) scene.add(ground);
+  if (!blueZone.parent) scene.add(blueZone);
+  if (!redZone.parent) scene.add(redZone);
+  if (!divider.parent) scene.add(divider);
+  if (!grid.parent) scene.add(grid);
+  if (!castleGroup.parent) scene.add(castleGroup);
+
+  ground.visible = true;
+  blueZone.visible = true;
+  redZone.visible = true;
+  divider.visible = true;
+  grid.visible = selectedMapTheme !== "lava";
+  castleGroup.visible = selectedMapTheme === "castle";
+
+  // Si por algún error el castillo quedó vacío, lo reconstruimos una sola vez.
+  if (selectedMapTheme === "castle" && castleGroup.children.length === 0) {
+    buildCastleMap();
+  }
+
+  placementPlane.visible = false;
+}
+
+function repairGameView() {
+  gameContainer.style.display = "block";
+  gameContainer.style.visibility = "visible";
+  gameContainer.style.opacity = "1";
+  gameContainer.style.pointerEvents = "auto";
+  gameContainer.style.position = "relative";
+
+  renderer.domElement.style.pointerEvents = "auto";
+  renderer.domElement.style.touchAction = "none";
+  renderer.domElement.style.display = "block";
+  renderer.domElement.style.visibility = "visible";
+  renderer.domElement.style.opacity = "1";
+  renderer.domElement.style.position = "relative";
+  renderer.domElement.style.zIndex = "2";
+  renderer.domElement.style.width = "100%";
+  renderer.domElement.style.height = "100%";
+
+  controls.enabled = true;
+  controls.enableRotate = true;
+  controls.enableZoom = true;
+  controls.enablePan = true;
+
+  if (!Number.isFinite(camera.position.x) || !Number.isFinite(camera.position.y) || !Number.isFinite(camera.position.z)) {
+    resetCameraView();
+  }
+
+  ensureBattleMapVisible();
+  resizeRenderer();
+  controls.update();
 }
 
 window.addEventListener("resize", resizeRenderer);
@@ -3050,6 +4305,11 @@ function animate() {
    INICIO
 ========================= */
 resizeRenderer();
+loadShopProgress();
+setMapTheme(selectedMapTheme);
+resetCameraView();
+repairGameView();
+ensureExtraLobbyPanels();
 updateUI();
 startApp();
 animate();
